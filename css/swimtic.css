@@ -1,0 +1,242 @@
+/* Global Variables */
+:root {
+  --primary-color: #4CAF50; /* Main green */
+  --primary-hover: #449d48; /* Darker green on hover */
+  --secondary-color: #ffa500; /* Accent orange */
+  --light-bg: #f0f0f0;
+  --accent-bg: #d0eaff;
+  --occupied-color: #ff9999;
+  --free-color: #b3d9ff;
+  --blocked-color: #ffffff;
+  --transition-speed: 0.3s;
+}
+
+/* Base Styles */
+.swimtic-frontend {
+  font-family: 'Barlow', sans-serif;
+  line-height: 1.6;
+  padding: 0 10px;
+  background: #fff;
+  color: #333;
+}
+
+/* Date Selector */
+.date-selector {
+  text-align: center;
+  margin: 20px 0;
+}
+.date-selector label {
+  margin-right: 5px;
+  font-weight: 500;
+}
+.date-selector input[type="submit"] {
+  margin-left: 10px;
+  margin-top: 10px;
+  padding: 8px 16px;
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color var(--transition-speed);
+}
+.date-selector input[type="submit"]:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Calendar */
+.swimtic-calendar {
+  margin: 40px auto 20px;
+  max-width: 100%;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform var(--transition-speed);
+}
+.swimtic-calendar:hover {
+  transform: scale(1.02);
+}
+.swimtic-calendar .current-day {
+  border: 2px solid var(--primary-color) !important;
+}
+.swimtic-calendar .selected-day {
+  background-color: var(--secondary-color);
+  color: #fff;
+}
+
+/* Schedule Section */
+.swimtic-schedule {
+  margin-top: 60px;
+  animation: fadeIn 0.5s ease-in-out;
+}
+.swimtic-schedule h2 {
+  text-align: center;
+  margin-bottom: 40px;
+  font-size: 1.8em;
+  position: relative;
+}
+.swimtic-schedule h2::after {
+  content: '';
+  width: 60px;
+  height: 4px;
+  background: var(--primary-color);
+  display: block;
+  margin: 10px auto 0;
+  border-radius: 2px;
+}
+
+/* Navigation Buttons */
+.navigation-buttons {
+  text-align: center;
+  margin: 30px 0 20px;
+}
+.navigation-buttons a {
+  margin: 0 10px;
+  text-decoration: none;
+  color: var(--primary-color);
+  padding: 8px 16px;
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  transition: background-color var(--transition-speed), color var(--transition-speed);
+}
+.navigation-buttons a:hover {
+  background-color: var(--primary-color);
+  color: #fff;
+}
+.navigation-buttons span.separator {
+  margin: 0 10px;
+  font-weight: bold;
+}
+
+/* Schedule Tabs */
+.schedule-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.tab-button {
+  padding: 10px 20px;
+  background-color: var(--light-bg);
+  border: 1px solid #ccc;
+  cursor: pointer;
+  font-size: 16px;
+  border-radius: 4px;
+  flex: 1 1 auto;
+  text-align: center;
+  min-width: 100px;
+  transition: background-color var(--transition-speed), transform var(--transition-speed);
+}
+.tab-button:hover {
+  background-color: #e0e0e0;
+  transform: translateY(-2px);
+}
+.tab-button.active {
+  background-color: var(--accent-bg);
+  border-color: var(--primary-color);
+  font-weight: bold;
+}
+
+/* Schedule Content */
+.schedule-content {
+  margin-top: 20px;
+}
+
+/* Schedule Tables */
+.swimtic-schedule table {
+  border-collapse: collapse;
+  margin: auto;
+  table-layout: fixed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.swimtic-schedule table thead th {
+  border: none !important;
+  border-left: 1px solid #ccc !important;
+  border-right: 1px solid #ccc !important;
+  width: 60px;
+  height: 60px;
+  text-align: center;
+  vertical-align: middle;
+  padding: 0;
+  position: sticky;
+  top: 0;
+  background: linear-gradient(135deg, #ffffff, #f9f9f9);
+  z-index: 3;
+}
+.swimtic-schedule table thead th:first-child {
+  border-left: none !important;
+}
+.swimtic-schedule table thead th:last-child {
+  border-right: none !important;
+}
+.swimtic-schedule table tbody td {
+  border: 1px solid #e0e0e0 !important;
+  width: 60px;
+  height: 60px;
+  text-align: center;
+  vertical-align: middle;
+  padding: 0;
+  transition: background-color var(--transition-speed), transform var(--transition-speed);
+}
+.swimtic-schedule table tbody td:hover {
+  transform: scale(1.05);
+}
+.swimtic-schedule table tbody td:first-child {
+  border-top: 1px solid #ccc !important;
+  border-bottom: 1px solid #ccc !important;
+  border-right: 1px solid #ccc !important;
+  border-left: none !important;
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 2;
+}
+.swimtic-schedule table tbody tr:first-child td {
+  border-top: none;
+}
+.swimtic-schedule table tbody tr td:last-child {
+  border-right: none;
+}
+.swimtic-schedule table tbody tr:last-child td {
+  border-bottom: none;
+}
+.swimtic-schedule table td.free {
+  background-color: var(--free-color) !important;
+}
+.swimtic-schedule table td.occupied {
+  background-color: var(--occupied-color) !important;
+}
+.swimtic-schedule table td.blocked {
+  background-color: var(--blocked-color) !important;
+}
+
+/* Pool Schedule */
+.pool-schedule {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.pool-schedule table {
+  margin: auto;
+}
+
+/* Responsive Tables */
+.table-responsive {
+  position: relative;
+  overflow-x: auto;
+}
+
+/* Fade-in Animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dragfill-selected {
+  outline: 2px solid #FFA500; /* taronja */
+  background-color: rgba(255, 165, 0, 0.3) !important;
+}
+
+
