@@ -1,11 +1,11 @@
 	<?php
 	/*
 	Plugin Name: SportTic
-	Plugin URI: http://exemple.com
+	Plugin URI: https://www.tactic.cat
 	Description: Plugin per a la gestió de pavellons amb programació d'horaris, condicions ambientals i plantilles.
 	Version: 3.269
-	Author: Tu
-	Author URI: http://exemple.com
+	Author: Albert Noe Noe
+	Author URI: https://www.albertnoe.com
 	License: GPL2
 	*/
 	
