@@ -1,11 +1,11 @@
 	<?php
 	/*
 	Plugin Name: SportTic
-	Plugin URI: https://www.tactic.cat
+	Plugin URI: http://exemple.com
 	Description: Plugin per a la gestió de pavellons amb programació d'horaris, condicions ambientals i plantilles.
-	Version: 3.269
-	Author: Albert Noe Noe
-	Author URI: https://www.albertnoe.com
+	Version: 3.271
+	Author: Tu
+	Author URI: http://exemple.com
 	License: GPL2
 	*/
 	
@@ -42,145 +42,166 @@
 	register_activation_hook( __FILE__, 'sportic_activar_plugin' );
 	
 function sportic_activar_plugin() {
-		// <-- INICI DE LA SOLUCIÓ: Comencem a capturar qualsevol sortida
-		ob_start();
-	
-		/* =====================================================================
-		 *  Configuració bàsica
-		 * ===================================================================*/
-		global $wpdb;
-		$charsetCollate = $wpdb->get_charset_collate();
-		$prefix         = $wpdb->prefix;
-	
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-	
-		/* =====================================================================
-		 *  1) TAULA PRINCIPAL DE PROGRAMACIÓ
-		 * ===================================================================*/
-		$nomTaulaProgramacio = $prefix . 'sportic_programacio';
-	
-		$sqlProgramacio = "CREATE TABLE IF NOT EXISTS $nomTaulaProgramacio (
-			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			piscina_slug  VARCHAR(50)  NOT NULL,
-			dia_data      DATE         NOT NULL,
-			hores_serial  LONGTEXT,
-			PRIMARY KEY (id),
-			-- Índex antic conservat per a retrocompatibilitat (primer camp = piscina_slug)
-			KEY piscina_dia             (piscina_slug, dia_data),
-			-- Índex d’unicitat ja existent (evita duplicats)
-			UNIQUE KEY idx_piscina_dia_unique (piscina_slug, dia_data)
-		) $charsetCollate;";
-	
-		dbDelta( $sqlProgramacio );
-	
-		/* -------------------------------------------------------------------
-		 *  OPTIMITZACIÓ: índex dedicat per a la columna 'dia_data'
-		 * ------------------------------------------------------------------*/
-		$idx_dia_existeix = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-			  WHERE table_schema = %s
-				AND table_name   = %s
-				AND index_name   = 'idx_dia_data'",
-			DB_NAME,
-			$nomTaulaProgramacio
-		) );
-	
-		if ( ! $idx_dia_existeix ) {
-			// S’afegeix sense trencar cap restricció existent
-			$wpdb->query( "ALTER TABLE $nomTaulaProgramacio
-						   ADD INDEX idx_dia_data (dia_data)" );
-		}
-	
-		/* =====================================================================
-		 *  2) TAULA DE BLOQUEIG
-		 * ===================================================================*/
-		if ( ! defined( 'SPORTIC_LOCK_TABLE' ) ) {
-			define( 'SPORTIC_LOCK_TABLE', 'sportic_bloqueig' ); // Assegurem la constant
-		}
-		$nomTaulaBloqueig = $prefix . SPORTIC_LOCK_TABLE;
-	
-		$sqlBloqueig = "CREATE TABLE IF NOT EXISTS $nomTaulaBloqueig (
-			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			piscina_slug  VARCHAR(50)  NOT NULL,
-			dia_data      DATE         NOT NULL,
-			hora          VARCHAR(5)   NOT NULL,
-			carril_index  SMALLINT UNSIGNED NOT NULL,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_cell      (piscina_slug, dia_data, hora, carril_index),
-			-- Índex antic (1r camp = piscina_slug)
-			KEY piscina_dia_hora        (piscina_slug, dia_data, hora)
-		) $charsetCollate;";
-	
-		dbDelta( $sqlBloqueig );
-	
-		/* Índex dedicat per a 'dia_data' a la taula de bloqueig */
-		$idx_dia_blk_existeix = $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-			  WHERE table_schema = %s
-				AND table_name   = %s
-				AND index_name   = 'idx_dia_data'",
-			DB_NAME,
-			$nomTaulaBloqueig
-		) );
-	
-		if ( ! $idx_dia_blk_existeix ) {
-			$wpdb->query( "ALTER TABLE $nomTaulaBloqueig
-						   ADD INDEX idx_dia_data (dia_data)" );
-		}
-	
-		/* =====================================================================
-		 *  NOU: 3) TAULA D'EXCEPCIONS PER A ESDEVENIMENTS RECURRENTS
-		 * ===================================================================*/
-		$nomTaulaExcepcions = $prefix . 'sportic_recurrent_exceptions';
-		$sqlExcepcions = "CREATE TABLE IF NOT EXISTS $nomTaulaExcepcions (
-			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			piscina_slug  VARCHAR(50)  NOT NULL,
-			dia_data      DATE         NOT NULL,
-			hora          VARCHAR(5)   NOT NULL,
-			carril_index  SMALLINT UNSIGNED NOT NULL,
-			PRIMARY KEY (id),
-			UNIQUE KEY unique_exception (piscina_slug, dia_data, hora, carril_index),
-			KEY idx_dia_data (dia_data)
-		) $charsetCollate;";
+			// <-- INICI DE LA SOLUCIÓ: Comencem a capturar qualsevol sortida
+			ob_start();
 		
-		dbDelta( $sqlExcepcions );
+			/* =====================================================================
+			 *  Configuració bàsica
+			 * ===================================================================*/
+			global $wpdb;
+			$charsetCollate = $wpdb->get_charset_collate();
+			$prefix         = $wpdb->prefix;
 		
-		/* =====================================================================
-		 *  4) TAULES D'UNDO/REDO  (sense canvis rellevants)
-		 * ===================================================================*/
-		$table_undo = $prefix . SPORTIC_UNDO_TABLE;
-		$sql_undo   = "CREATE TABLE IF NOT EXISTS $table_undo (
-			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-			user_id       BIGINT(20) UNSIGNED NOT NULL,
-			option_name   VARCHAR(255) NOT NULL,
-			diff          LONGTEXT,
-			date_recorded DATETIME     NOT NULL,
-			PRIMARY KEY (id),
-			KEY user_id (user_id),
-			KEY option_name (option_name)
-		) $charsetCollate;";
-		dbDelta( $sql_undo );
+			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		
+			/* =====================================================================
+			 *  1) TAULA PRINCIPAL DE PROGRAMACIÓ
+			 * ===================================================================*/
+			$nomTaulaProgramacio = $prefix . 'sportic_programacio';
+		
+			$sqlProgramacio = "CREATE TABLE IF NOT EXISTS $nomTaulaProgramacio (
+				id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+				piscina_slug  VARCHAR(50)  NOT NULL,
+				dia_data      DATE         NOT NULL,
+				hores_serial  LONGTEXT,
+				PRIMARY KEY (id),
+				-- Índex antic conservat per a retrocompatibilitat (primer camp = piscina_slug)
+				KEY piscina_dia             (piscina_slug, dia_data),
+				-- Índex d’unicitat ja existent (evita duplicats)
+				UNIQUE KEY idx_piscina_dia_unique (piscina_slug, dia_data)
+			) $charsetCollate;";
+		
+			dbDelta( $sqlProgramacio );
+		
+			/* -------------------------------------------------------------------
+			 *  OPTIMITZACIÓ: índex dedicat per a la columna 'dia_data'
+			 * ------------------------------------------------------------------*/
+			$idx_dia_existeix = $wpdb->get_var( $wpdb->prepare(
+				"SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+				  WHERE table_schema = %s
+					AND table_name   = %s
+					AND index_name   = 'idx_dia_data'",
+				DB_NAME,
+				$nomTaulaProgramacio
+			) );
+		
+			if ( ! $idx_dia_existeix ) {
+				// S’afegeix sense trencar cap restricció existent
+				$wpdb->query( "ALTER TABLE $nomTaulaProgramacio
+							   ADD INDEX idx_dia_data (dia_data)" );
+			}
+		
+			/* =====================================================================
+			 *  2) TAULA DE BLOQUEIG
+			 * ===================================================================*/
+			if ( ! defined( 'SPORTIC_LOCK_TABLE' ) ) {
+				define( 'SPORTIC_LOCK_TABLE', 'sportic_bloqueig' ); // Assegurem la constant
+			}
+			$nomTaulaBloqueig = $prefix . SPORTIC_LOCK_TABLE;
+		
+			$sqlBloqueig = "CREATE TABLE IF NOT EXISTS $nomTaulaBloqueig (
+				id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+				piscina_slug  VARCHAR(50)  NOT NULL,
+				dia_data      DATE         NOT NULL,
+				hora          VARCHAR(5)   NOT NULL,
+				carril_index  SMALLINT UNSIGNED NOT NULL,
+				PRIMARY KEY (id),
+				UNIQUE KEY unique_cell      (piscina_slug, dia_data, hora, carril_index),
+				-- Índex antic (1r camp = piscina_slug)
+				KEY piscina_dia_hora        (piscina_slug, dia_data, hora)
+			) $charsetCollate;";
+		
+			dbDelta( $sqlBloqueig );
+		
+			/* Índex dedicat per a 'dia_data' a la taula de bloqueig */
+			$idx_dia_blk_existeix = $wpdb->get_var( $wpdb->prepare(
+				"SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+				  WHERE table_schema = %s
+					AND table_name   = %s
+					AND index_name   = 'idx_dia_data'",
+				DB_NAME,
+				$nomTaulaBloqueig
+			) );
+		
+			if ( ! $idx_dia_blk_existeix ) {
+				$wpdb->query( "ALTER TABLE $nomTaulaBloqueig
+							   ADD INDEX idx_dia_data (dia_data)" );
+			}
+			
+			/* =====================================================================
+			 *  4) TAULES D'UNDO/REDO  (sense canvis rellevants)
+			 * ===================================================================*/
+			$table_undo = $prefix . SPORTIC_UNDO_TABLE;
+			$sql_undo   = "CREATE TABLE IF NOT EXISTS $table_undo (
+				id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+				user_id       BIGINT(20) UNSIGNED NOT NULL,
+				option_name   VARCHAR(255) NOT NULL,
+				diff          LONGTEXT,
+				date_recorded DATETIME     NOT NULL,
+				PRIMARY KEY (id),
+				KEY user_id (user_id),
+				KEY option_name (option_name)
+			) $charsetCollate;";
+			dbDelta( $sql_undo );
+		
+			$table_redo = $prefix . SPORTIC_REDO_TABLE;
+			$sql_redo   = str_replace( SPORTIC_UNDO_TABLE, SPORTIC_REDO_TABLE, $sql_undo );
+			dbDelta( $sql_redo );
+		
+			if ( get_option( 'sportic_undo_db_version' ) === false ) {
+				add_option( 'sportic_undo_db_version', SPORTIC_UNDO_DB_VERSION );
+			}
+		
+			/* =====================================================================
+			 *  5) MIGRACIÓ INICIAL (sense canvis)
+			 * ===================================================================*/
+			$recompte = $wpdb->get_var( "SELECT COUNT(*) FROM $nomTaulaProgramacio" );
+			if ( $recompte == 0 ) {
+				migrar_dades_sportic_a_taula();
+			}
 	
-		$table_redo = $prefix . SPORTIC_REDO_TABLE;
-		$sql_redo   = str_replace( SPORTIC_UNDO_TABLE, SPORTIC_REDO_TABLE, $sql_undo );
-		dbDelta( $sql_redo );
-	
-		if ( get_option( 'sportic_undo_db_version' ) === false ) {
-			add_option( 'sportic_undo_db_version', SPORTIC_UNDO_DB_VERSION );
-		}
-	
-		/* =====================================================================
-		 *  5) MIGRACIÓ INICIAL (sense canvis)
-		 * ===================================================================*/
-		$recompte = $wpdb->get_var( "SELECT COUNT(*) FROM $nomTaulaProgramacio" );
-		if ( $recompte == 0 ) {
-			migrar_dades_sportic_a_taula();
-		}
-	
-		// <-- FI DE LA SOLUCIÓ: Netegem i aturem la captura de sortida
-		ob_end_clean();
+			/* =====================================================================
+			 *  6) NOVA TAULA: REGISTRE DE VISITES (ANALYTICS)
+			 * ===================================================================*/
+			$nomTaulaVisites = $wpdb->prefix . 'sportic_visits_log';
+			$sqlVisites = "CREATE TABLE IF NOT EXISTS $nomTaulaVisites (
+				id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+				team_code VARCHAR(191) NOT NULL,
+				visit_timestamp DATETIME NOT NULL,
+				device VARCHAR(20) NOT NULL,
+				referrer_type VARCHAR(20) NOT NULL,
+				PRIMARY KEY (id),
+				KEY idx_team_code (team_code),
+				KEY idx_visit_timestamp (visit_timestamp)
+			) $charsetCollate;";
+		
+			dbDelta( $sqlVisites );
+		
+			// MIGRACIÓ DE DADES DE VISITES (NOMÉS EXECUTA UNA VEGADA)
+			$old_visit_log = get_option('sportic_visit_log');
+			if ($old_visit_log !== false && is_array($old_visit_log)) {
+				foreach ($old_visit_log as $visit) {
+					if (!isset($visit['code'], $visit['timestamp'], $visit['device'], $visit['referrer_type'])) continue;
+					
+					$wpdb->insert(
+						$nomTaulaVisites,
+						[
+							'team_code'       => $visit['code'],
+							'visit_timestamp' => gmdate('Y-m-d H:i:s', $visit['timestamp']),
+							'device'          => $visit['device'],
+							'referrer_type'   => $visit['referrer_type'],
+						],
+						['%s', '%s', '%s', '%s']
+					);
+				}
+				// Un cop migrat, esborrem l'antiga opció per alliberar espai i evitar que es torni a executar
+				delete_option('sportic_visit_log');
+			}
+		
+			// <-- FI DE LA SOLUCIÓ: Netegem i aturem la captura de sortida
+			ob_end_clean();
 	}
-	
+		
 	// ----------------------------------------------------------------
 	// (B) Migrar dades des de l'opció antic (sportic_unfile_dades) cap a la taula
 	//     Aquesta funció es manté igual, només afecta la taula de programació.
@@ -246,6 +267,8 @@ function sportic_llegir_de_taula_sense_prefix($pre_value, $option) {
 	global $wpdb;
 	$nomTaulaProg = $wpdb->prefix . 'sportic_programacio';
 	$nomTaulaLock = defined('SPORTIC_LOCK_TABLE') ? ($wpdb->prefix . SPORTIC_LOCK_TABLE) : ($wpdb->prefix . 'sportic_bloqueig');
+	// NOU: Definim la taula d'excepcions
+	$nomTaulaExcepcions = $wpdb->prefix . 'sportic_recurrent_exceptions';
 
 	if ( defined('DOING_AJAX') && DOING_AJAX && isset($_REQUEST['action']) && $_REQUEST['action'] === 'sportic_unfile_csv') {
 		return $pre_value;
@@ -261,10 +284,7 @@ function sportic_llegir_de_taula_sense_prefix($pre_value, $option) {
 		$start_week_day = $startObj->format('Y-m-d');
 		$end_week_day   = $endObj->format('Y-m-d');
 
-		// Clau de caché amb suport per a 'lloc'
-		$lloc_slug_for_key = isset($_GET['lloc']) ? sanitize_key($_GET['lloc']) : 'default_lloc';
-		$transient_key = 'sportic_week_data_' . $lloc_slug_for_key . '_' . $start_week_day;
-		
+		$transient_key = 'sportic_week_data_' . $start_week_day;
 		$data_amb_prefix_transient = get_transient($transient_key);
 
 		if ($data_amb_prefix_transient !== false && is_array($data_amb_prefix_transient)) {
@@ -278,7 +298,14 @@ function sportic_llegir_de_taula_sense_prefix($pre_value, $option) {
 		$rowsProg = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hores_serial FROM $nomTaulaProg WHERE dia_data BETWEEN %s AND %s", $start_week_day, $end_week_day), ARRAY_A);
 		$rowsLock = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $nomTaulaLock WHERE dia_data BETWEEN %s AND %s", $start_week_day, $end_week_day), ARRAY_A);
 		
-		// NOTA: Aquí hem eliminat la càrrega de $rowsExceptions perquè ja no es fan servir.
+		// NOU: Carreguem les excepcions per a la setmana visible
+		$rowsExceptions = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $nomTaulaExcepcions WHERE dia_data BETWEEN %s AND %s", $start_week_day, $end_week_day), ARRAY_A);
+		$exceptions_map = [];
+		if ($rowsExceptions) {
+			foreach ($rowsExceptions as $ex) {
+				$exceptions_map[$ex['piscina_slug']][$ex['dia_data']][$ex['hora']][(int)$ex['carril_index']] = true;
+			}
+		}
 
 		$configured_pools = sportic_unfile_get_pool_labels_sorted();
 		$pool_slugs_configurats = array_keys($configured_pools);
@@ -322,7 +349,43 @@ function sportic_llegir_de_taula_sense_prefix($pre_value, $option) {
 			}
 		}
 
-		// PAS 1: Aplicar esdeveniments recurrents (ELIMINAT - Ja no hi ha bucle aquí)
+		// PAS 1: Aplicar esdeveniments recurrents
+		$recurrent_events_map = sportic_get_all_recurrent_events_map();
+		foreach ($recurrent_events_map as $date_str => $pools_in_date) {
+			if ($date_str < $start_week_day || $date_str > $end_week_day) continue;
+			foreach ($pools_in_date as $pool_slug => $hours_in_pool) {
+				if (!in_array($pool_slug, $pool_slugs_configurats)) continue;
+				$num_carrils_piscina = $configured_pools[$pool_slug]['lanes'] ?? 0;
+				foreach ($hours_in_pool as $hour => $rules_for_hour) {
+					if (isset($ret_amb_prefix_setmana[$pool_slug][$date_str][$hour])) {
+						foreach ($rules_for_hour as $event_details) {
+							$lanes_to_apply = $event_details['lanes'];
+							$new_value = $event_details['letter'];
+							if (is_null($lanes_to_apply) || empty($lanes_to_apply)) {
+								foreach($ret_amb_prefix_setmana[$pool_slug][$date_str][$hour] as $c_idx => $c_val) {
+									// NOU: Comprovem si hi ha una excepció abans d'aplicar
+									if (isset($exceptions_map[$pool_slug][$date_str][$hour][$c_idx])) {
+										continue;
+									}
+									if (strpos($c_val, '!') !== 0) $ret_amb_prefix_setmana[$pool_slug][$date_str][$hour][$c_idx] = $new_value;
+								}
+							} else {
+								foreach ($lanes_to_apply as $lane_idx_1) {
+									$lane_idx_0 = $lane_idx_1 - 1;
+									// NOU: Comprovem si hi ha una excepció abans d'aplicar
+									if (isset($exceptions_map[$pool_slug][$date_str][$hour][$lane_idx_0])) {
+										continue;
+									}
+									if ($lane_idx_0 >= 0 && $lane_idx_0 < $num_carrils_piscina && strpos($ret_amb_prefix_setmana[$pool_slug][$date_str][$hour][$lane_idx_0], '!') !== 0) {
+										$ret_amb_prefix_setmana[$pool_slug][$date_str][$hour][$lane_idx_0] = $new_value;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 		
 		// PAS 2: Aplicar bloquejos manuals al final
 		$locksWeek_map = array();
@@ -362,6 +425,7 @@ function sportic_llegir_de_taula_sense_prefix($pre_value, $option) {
 	$cached_sense_prefix = $cleaned_data_tot;
 	return $cleaned_data_tot;
 }
+
 	// 2) Quan algun codi fa update_option('sportic_unfile_dades', $valor),
 	//    en realitat ho guardem a les noves taules (programació i bloqueig)
 	add_filter('pre_update_option_sportic_unfile_dades', 'sportic_guardar_a_taula', 10, 3);
@@ -382,8 +446,7 @@ function sportic_carregar_tot_com_array() {
 		global $wpdb;
 		$nomTaulaProg = $wpdb->prefix . 'sportic_programacio';
 		$nomTaulaLock = defined('SPORTIC_LOCK_TABLE') ? ($wpdb->prefix . SPORTIC_LOCK_TABLE) : ($wpdb->prefix . 'sportic_bloqueig');
-		
-		// Ja no necessitem la taula d'excepcions aquí
+		$nomTaulaExcepcions = $wpdb->prefix . 'sportic_recurrent_exceptions';
 	
 		$ret_final = array();
 		$dies_endavant = defined('SPORTIC_DIES_ENDAVANT') ? absint(SPORTIC_DIES_ENDAVANT) : 30;
@@ -407,7 +470,6 @@ function sportic_carregar_tot_com_array() {
 			$ret_final[$s_slug] = array();
 		}
 	
-		// 1. Carreguem la programació base
 		$sql_prog = $wpdb->prepare("SELECT piscina_slug, dia_data, hores_serial FROM $nomTaulaProg WHERE dia_data BETWEEN %s AND %s", $data_avui, $data_fi);
 		$filesProg = $wpdb->get_results($sql_prog, ARRAY_A);
 	
@@ -437,10 +499,10 @@ function sportic_carregar_tot_com_array() {
 			}
 		}
 	
-		// Identifiquem dies que tenen bloquejos per assegurar que estan inicialitzats
 		$dies_potencials_map = [];
 		$sql_lock_dates = $wpdb->prepare("SELECT DISTINCT dia_data FROM $nomTaulaLock WHERE dia_data BETWEEN %s AND %s", $data_avui, $data_fi);
 		$lock_dates = $wpdb->get_col($sql_lock_dates);
+		foreach($lock_dates as $date) $dies_potencials_map[$date] = true;
 	
 		foreach ($ret_final as $slug_p => &$dies_data) {
 			$dates_in_pool = array_keys($dies_data);
@@ -453,7 +515,47 @@ function sportic_carregar_tot_com_array() {
 		}
 		unset($dies_data);
 		
-		// 2. Apliquem bloquejos manuals (afegeix '!' si cal)
+		// CANVI CLAU: Carreguem el mapa d'excepcions per al rang de dates global
+		$exceptions_raw = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $nomTaulaExcepcions WHERE dia_data BETWEEN %s AND %s", $data_avui, $data_fi), ARRAY_A);
+		$exceptions_map_global = [];
+		foreach ($exceptions_raw as $ex) {
+			$exceptions_map_global[$ex['piscina_slug']][$ex['dia_data']][$ex['hora']][(int)$ex['carril_index']] = true;
+		}
+		
+		// PAS 1: Aplicar esdeveniments recurrents (respectant excepcions)
+		$recurrent_events_map = sportic_get_all_recurrent_events_map();
+		foreach($recurrent_events_map as $date_str => $pools_in_date) {
+			if ($date_str < $data_avui || $date_str > $data_fi) continue;
+			foreach($pools_in_date as $pool_slug => $hours_in_pool) {
+				if (!in_array($pool_slug, $pool_slugs_configurats)) continue;
+				if (!isset($ret_final[$pool_slug][$date_str])) $ret_final[$pool_slug][$date_str] = sportic_unfile_crear_programacio_default($pool_slug);
+				$num_carrils_piscina = $configured_pools[$pool_slug]['lanes'] ?? 0;
+				foreach($hours_in_pool as $hour => $rules_for_hour) {
+					if (isset($ret_final[$pool_slug][$date_str][$hour])) {
+						foreach ($rules_for_hour as $event_details) {
+							$lanes_to_apply = $event_details['lanes'];
+							$new_value = $event_details['letter'];
+							if (is_null($lanes_to_apply) || empty($lanes_to_apply)) {
+								foreach($ret_final[$pool_slug][$date_str][$hour] as $c_idx => $c_val) {
+									if (isset($exceptions_map_global[$pool_slug][$date_str][$hour][$c_idx])) continue; // Comprovem excepció
+									if (strpos($c_val, '!') !== 0) $ret_final[$pool_slug][$date_str][$hour][$c_idx] = $new_value;
+								}
+							} else {
+								foreach($lanes_to_apply as $lane_idx_1) {
+									$lane_idx_0 = $lane_idx_1 - 1;
+									if (isset($exceptions_map_global[$pool_slug][$date_str][$hour][$lane_idx_0])) continue; // Comprovem excepció
+									if ($lane_idx_0 >= 0 && $lane_idx_0 < $num_carrils_piscina && isset($ret_final[$pool_slug][$date_str][$hour][$lane_idx_0]) && strpos($ret_final[$pool_slug][$date_str][$hour][$lane_idx_0], '!') !== 0) {
+										$ret_final[$pool_slug][$date_str][$hour][$lane_idx_0] = $new_value;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	
+		// PAS 2: Apliquem bloquejos manuals
 		$sql_lock = $wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $nomTaulaLock WHERE dia_data BETWEEN %s AND %s", $data_avui, $data_fi);
 		$filesLock = $wpdb->get_results($sql_lock, ARRAY_A);
 		$locks_map = array();
@@ -489,7 +591,7 @@ function sportic_carregar_tot_com_array() {
 		wp_cache_set($cache_key, $ret_final, $cache_group, 0);
 		return $ret_final;
 	}
-				
+			
 	/**
 	 * ============================================================================
 	 * NOVA FUNCIÓ AUXILIAR PER NETEJAR ELS TRANSIENTS DEL CSV
@@ -872,40 +974,89 @@ if ( ! function_exists('sportic_finalize_session_block') ) {
 	/**
 	 * Construeix l'estructura d'un bloc de sessió a partir de les dades acumulades.
 	 */
-	function sportic_finalize_session_block( $start_time, $block_count, $value, $locked, $recurrent, $lane_label, $palette ) {
-		$duration_minutes = max( 15, $block_count * 15 );
-		$end_time = sportic_add_minutes_to_time( $start_time, $duration_minutes );
-		$label = $value;
-		$sub = '';
-		if (strpos($value, ':') !== false) {
-			list($primary, $subitems) = array_map('trim', explode(':', $value, 2));
-			$label = $primary;
-			$sub = $subitems;
-		}
-
-		if ($value === 'l') {
-			$label = __( 'Lliure', 'sportic' );
-		} elseif ($value === 'b') {
-			$label = __( 'Tancat', 'sportic' );
-		}
-
-		$palette_key = array_key_exists( $value, $palette ) ? $value : $label;
-		$color_info = $palette[ $palette_key ] ?? $palette['l'];
-
-		return [
-			'start'     => $start_time,
-			'end'       => $end_time,
-			'duration'  => $duration_minutes,
-			'value'     => $value,
-			'label'     => $label,
-			'sub_label' => $sub,
-			'lane'      => $lane_label,
-			'locked'    => $locked,
-			'recurrent' => $recurrent,
-			'color'     => $color_info['color'] ?? '#e2e8f0',
-			'badge'     => $color_info['label'] ?? $label,
-		];
-	}
+function sportic_finalize_session_block( $start_time, $block_count, $value, $locked, $recurrent, $lane_label, $palette ) {
+		 $duration_minutes = max( 15, $block_count * 15 );
+		 $end_time = sportic_add_minutes_to_time( $start_time, $duration_minutes );
+		 $label = $value;
+		 $sub = '';
+		 
+		 // ========================================================================
+		 // INICI DEL CANVI: LÒGICA MILLORADA PER A COLORS BARREJATS (v3)
+		 // ========================================================================
+		 $is_mixed = false;
+		 $background_css = '';
+		 $text_css = '';
+		 $final_color_for_badge = '#e2e8f0';
+	 
+		 if (strpos($value, 'MIX:') === 0) {
+			 $is_mixed = true;
+			 $teams_string = substr($value, 4);
+			 $teams_array = array_map('trim', explode('|', $teams_string));
+			 $label = implode(' + ', $teams_array);
+			 $sub = 'Sessió Mixta';
+			 
+			 $colors_to_blend = [];
+			 foreach ($teams_array as $team_name) {
+				 if (isset($palette[$team_name])) {
+					 $colors_to_blend[] = $palette[$team_name]['color'];
+				 }
+			 }
+			 
+			 $blended_color = sportic_blend_hex_colors($colors_to_blend);
+			 $final_color_for_badge = $blended_color;
+	 
+			 // Per al shortcode, el fons complet de la targeta serà el color barrejat
+			 $background_css = "background-color: " . esc_attr($blended_color) . "; border-left: none;";
+	 
+			 // Calculem el color del text per al contrast sobre el color barrejat
+			 $text_color = sportic_get_contrast_for_hex($blended_color);
+			 $text_css = "color: {$text_color};";
+			 
+			 $color_info = ['color' => $blended_color, 'label' => 'Mixt'];
+	 
+		 } else {
+			 if (strpos($value, ':') !== false) {
+				 list($primary, $subitems) = array_map('trim', explode(':', $value, 2));
+				 $label = $primary;
+				 $sub = $subitems;
+			 }
+	 
+			 if ($value === 'l') {
+				 $label = __( 'Lliure', 'sportic' );
+			 } elseif ($value === 'b') {
+				 $label = __( 'Tancat', 'sportic' );
+			 }
+	 
+			 $palette_key = array_key_exists( $value, $palette ) ? $value : $label;
+			 $color_info = $palette[ $palette_key ] ?? $palette['l'];
+			 $final_color_for_badge = $color_info['color'] ?? '#e2e8f0';
+			 
+			 // Per a sessions normals, el fons és blanc i només canvia la vora
+			 $background_css = "border-left-color: " . esc_attr($final_color_for_badge);
+			 // El text de les sessions normals sempre va sobre fons blanc, no cal text_css
+			 $text_css = ""; 
+		 }
+		 // ========================================================================
+		 // FI DEL CANVI
+		 // ========================================================================
+	 
+		 return [
+			 'start'     => $start_time,
+			 'end'       => $end_time,
+			 'duration'  => $duration_minutes,
+			 'value'     => $value,
+			 'label'     => $label,
+			 'sub_label' => $sub,
+			 'lane'      => $lane_label,
+			 'locked'    => $locked,
+			 'recurrent' => $recurrent,
+			 'color'     => $final_color_for_badge,
+			 'badge'     => $color_info['label'] ?? $label,
+			 'is_mixed'  => $is_mixed,
+			 'background_css' => $background_css,
+			 'text_css'  => $text_css,
+		 ];
+	 }
 }
 
 if ( ! function_exists('sportic_group_events_into_sessions') ) {
@@ -1079,6 +1230,7 @@ if ( ! function_exists('sportic_process_team_sessions') ) {
 	}
 }
 
+
 if ( ! function_exists('sportic_find_and_build_sessions') ) {
 	/**
 	 * Analitza un mapa d'horaris i construeix sessions basades en blocs de cel·les
@@ -1115,9 +1267,8 @@ if ( ! function_exists('sportic_find_and_build_sessions') ) {
 						if (isset($visited[$hora][$c])) continue;
 
 						$valor_net = sportic_clean_schedule_value($day_schedule[$hora][$c] ?? 'l');
-						$primary_token = mb_strtolower(sportic_extract_primary_token($valor_net));
-
-						if ($primary_token !== $team_name_norm) {
+						
+						if (!sportic_team_matches_cell_value($valor_net, $team_name_norm)) {
 							$visited[$hora][$c] = true;
 							continue;
 						}
@@ -1138,7 +1289,7 @@ if ( ! function_exists('sportic_find_and_build_sessions') ) {
 									$neighbor_hora = $hores[$nr];
 									if (!isset($visited[$neighbor_hora][$nc])) {
 										$neighbor_val_net = sportic_clean_schedule_value($day_schedule[$neighbor_hora][$nc] ?? 'l');
-										if (mb_strtolower(sportic_extract_primary_token($neighbor_val_net)) === $team_name_norm) {
+										if (sportic_team_matches_cell_value($neighbor_val_net, $team_name_norm)) {
 											$visited[$neighbor_hora][$nc] = true;
 											$queue[] = [$nr, $nc];
 										}
@@ -1152,6 +1303,21 @@ if ( ! function_exists('sportic_find_and_build_sessions') ) {
 							$max_time = max(array_column($current_session_cells, 'hora'));
 							$overall_end = sportic_add_minutes_to_time($max_time, 15);
 							
+							// ========================================================================
+							// INICI DEL CANVI: Obtenim les etiquetes de les pistes utilitzades
+							// ========================================================================
+							$used_lane_indices = array_unique(array_column($current_session_cells, 'carril_idx'));
+							sort($used_lane_indices);
+							$used_lane_labels = [];
+							foreach ($used_lane_indices as $idx) {
+								if (isset($lane_labels[$idx])) {
+									$used_lane_labels[] = $lane_labels[$idx];
+								}
+							}
+							// ========================================================================
+							// FI DEL CANVI
+							// ========================================================================
+
 							$occupied_lookup = [];
 							foreach($current_session_cells as $cell) $occupied_lookup[$cell['hora']][$cell['carril_idx']] = true;
 
@@ -1172,13 +1338,26 @@ if ( ! function_exists('sportic_find_and_build_sessions') ) {
 							$end_dt = new DateTime($overall_end);
 							$duration = ($start_dt->diff($end_dt)->h * 60) + $start_dt->diff($end_dt)->i;
 
+							$mixed_info = null;
+							if (strpos($valor_net, 'MIX:') === 0) {
+								$teams_in_cell = explode('|', substr($valor_net, 4));
+								$other_teams = array_filter($teams_in_cell, function($t) use ($team_name_norm) {
+									return mb_strtolower(trim($t)) !== $team_name_norm;
+								});
+								if (!empty($other_teams)) {
+									$mixed_info = ['with' => array_values($other_teams)];
+								}
+							}
+
 							$day_sessions[] = [
 								'pavilion_label' => $pool_info['label'],
 								'overall_start' => $min_time,
 								'overall_end' => $overall_end,
 								'duration_minutes' => $duration,
 								'all_lanes_in_pavilion' => $lane_labels,
-								'schedule_grid' => $schedule_grid
+								'schedule_grid' => $schedule_grid,
+								'mixed_info' => $mixed_info,
+								'lanes_used_labels' => $used_lane_labels, // <-- AFEGIT
 							];
 						}
 					}
@@ -1190,9 +1369,14 @@ if ( ! function_exists('sportic_find_and_build_sessions') ) {
 		return $sessions_by_day;
 	}
 }
-
+	 
 if ( ! function_exists('sportic_team_schedule_shortcode') ) {
 function sportic_team_schedule_shortcode($atts) {
+	// ========================================================================
+	// NOU: L'únic canvi. Cridem la nostra nova funció de rastreig
+	// ========================================================================
+	sportic_track_shortcode_visit($atts);
+
 	$atts = shortcode_atts(['code' => '', 'title' => ''], $atts, 'sportic_team_schedule');
 	
 	$code = sanitize_title($atts['code']);
@@ -1220,8 +1404,12 @@ function sportic_team_schedule_shortcode($atts) {
 	$schedule_map = sportic_carregar_finestra_bd($initial_display_week_start_str, 6, 0);
 	$sessions_by_day = sportic_find_and_build_sessions($schedule_map, $piscines, $team_name, $initial_display_week_start_str, 7);
 
-	$shortcode_options = get_option('sporttic_shortcode_options', ['hide_empty_days' => '0']);
-	$hide_empty_days = isset($shortcode_options['hide_empty_days']) && $shortcode_options['hide_empty_days'] === '1';
+	$shortcode_options_defaults = ['hide_empty_days' => '0', 'compact_view' => '0'];
+	$shortcode_options = get_option('sporttic_shortcode_options', []);
+	$shortcode_options = wp_parse_args($shortcode_options, $shortcode_options_defaults);
+	
+	$hide_empty_days = ($shortcode_options['hide_empty_days'] === '1');
+	$is_compact_view = ($shortcode_options['compact_view'] === '1');
 
 	$days_to_display = $sessions_by_day;
 	if ($hide_empty_days) {
@@ -1277,6 +1465,20 @@ function sportic_team_schedule_shortcode($atts) {
 			.sportic-session-header-info{display:flex;flex-direction:column;gap:4px;}
 			.sportic-session-header-info .pavilion{font-weight:700;font-size:1.1rem;color:#1e293b;line-height:1.3;}
 			.sportic-session-header-info .time{font-size:0.95rem;color:#475569;}
+			.sportic-session-header-info .lanes-info {
+				font-size:0.9rem;
+				color:#475569;
+				margin-top:4px;
+				font-weight:500;
+				line-height: 1.5;
+			}
+			.sportic-session-header-info .lanes-info strong {
+				color:#1e293b;
+			}
+			.sportic-session-header-info .lanes-info .lane-item {
+				display: inline-block;
+				white-space: nowrap;
+			}
 			.sportic-session-duration{background:var(--accent-light);color:var(--accent-text);padding:5px 12px;border-radius:999px;font-size:0.8rem;font-weight:600;flex-shrink:0;}
 			.sportic-session-grid-wrapper{margin-top:10px;border-top:1px solid #e2e8f0;padding-top:12px;}
 			.sportic-session-table{width:100%;border-collapse:collapse;table-layout:fixed;}
@@ -1291,6 +1493,19 @@ function sportic_team_schedule_shortcode($atts) {
 			.sportic-session-table td.empty{background-color:#f1f5f9;}
 			.sportic-day-card .no-session{flex-grow:1;display:flex;align-items:center;justify-content:center;text-align:center;color:#9ca3af;border:2px dashed #e5e7eb;border-radius:16px;padding:24px;}
 			.sportic-schedule-footer{margin-top:32px;text-align:center;font-size:0.85rem;color:#6b7280;}
+			.sportic-session-mixed-notice {
+				background-color: #f0fdf4;
+				color: #166534;
+				border: 1px solid #bbf7d0;
+				border-radius: 12px;
+				padding: 6px 14px;
+				font-size: 0.85rem;
+				font-weight: 500;
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				line-height: 1.4;
+			}
 			@media(max-width:720px){
 				.sportic-team-hero{padding:26px 24px;}
 				.sportic-schedule-grid{gap:18px;}
@@ -1300,13 +1515,13 @@ function sportic_team_schedule_shortcode($atts) {
 				.sportic-session-table th:not(:first-child) { writing-mode: initial; transform: none; padding: 0; vertical-align: middle; }
 				.sportic-session-table .th-content-wrapper { transform: rotate(-90deg); white-space: nowrap; display: block; font-size: 0.85rem; }
 			}
-			/* ======================================================================== */
-			/* INICI DEL CANVI: Afegeix un nou estil per a lelement fantasma */
-			/* ======================================================================== */
 			.sportic-day-card-placeholder { visibility: hidden; border: none; box-shadow: none; background: none; }
-			/* ======================================================================== */
-			/* FI DEL CANVI */
-			/* ======================================================================== */
+			.sportic-session-table thead tr:first-child th {
+				border-top: 1px solid #e2e8f0 !important;
+				border-block-start: 1px solid #e2e8f0 !important;
+			}
+
+
 		</style>';
 	}
 
@@ -1362,9 +1577,36 @@ function sportic_team_schedule_shortcode($atts) {
 										<div class="sportic-session-header-info">
 											<span class="pavilion"><?php echo esc_html($session['pavilion_label']); ?></span>
 											<span class="time"><?php echo esc_html($session['overall_start'] . ' - ' . $session['overall_end']); ?></span>
+											
+											<?php
+											if ($is_compact_view && !empty($session['lanes_used_labels']) && is_array($session['lanes_used_labels'])): ?>
+												<div class="lanes-info">
+													<strong>Pistes: </strong><?php
+													$lane_items = [];
+													foreach ($session['lanes_used_labels'] as $lane_label) {
+														$lane_items[] = '<span class="lane-item">' . esc_html($lane_label) . '</span>';
+													}
+													echo implode(', ', $lane_items);
+													?>
+												</div>
+											<?php endif; ?>
 										</div>
 										<span class="sportic-session-duration"><?php echo esc_html(sportic_format_duration_label($session['duration_minutes'])); ?></span>
 									</div>
+									
+									<?php 
+									if (!empty($session['mixed_info']) && !empty($session['mixed_info']['with'])): 
+										$other_teams_str = implode(', ', array_map('esc_html', $session['mixed_info']['with']));
+									?>
+										<div class="sportic-session-mixed-notice">
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+											<span>Entrenament Mixt amb: <strong><?php echo $other_teams_str; ?></strong></span>
+										</div>
+									<?php 
+									endif;
+									?>
+
+									<?php if (!$is_compact_view): ?>
 									<div class="sportic-session-grid-wrapper">
 										<table class="sportic-session-table">
 											<thead>
@@ -1389,6 +1631,7 @@ function sportic_team_schedule_shortcode($atts) {
 											</tbody>
 										</table>
 									</div>
+									<?php endif; ?>
 								</div>
 							<?php endforeach; else: ?>
 								<div class="no-session">Sense entrenaments programats</div>
@@ -1398,21 +1641,15 @@ function sportic_team_schedule_shortcode($atts) {
 				<?php endforeach;
 			endif;
 
-			// ========================================================================
-			// INICI DEL CANVI: Lògica per afegir els elements fantasma
-			// ========================================================================
 			if ($hide_empty_days) {
 				$visible_days_count = count($days_to_display);
-				$grid_columns = 3; // Assumim un màxim de 3 columnes en escriptori per calcular els placeholders
+				$grid_columns = 3;
 				$placeholders_needed = ($visible_days_count > 0 && $visible_days_count % $grid_columns !== 0) ? $grid_columns - ($visible_days_count % $grid_columns) : 0;
 				
 				for ($i = 0; $i < $placeholders_needed; $i++) {
 					echo '<div class="sportic-day-card-placeholder"></div>';
 				}
 			}
-			// ========================================================================
-			// FI DEL CANVI
-			// ========================================================================
 			?>
 		</section>
 
@@ -1461,20 +1698,20 @@ function sportic_team_schedule_shortcode($atts) {
 
 					fetch(config.ajaxUrl, { method: 'POST', body: formData })
 					.then(response => {
-						if (!response.ok) throw new Error(`Error de xarxa: ${response.statusText}`);
+						if (!response.ok) throw new Error('Error de xarxa: ' + response.statusText);
 						return response.json();
 					})
 					.then(response => {
 						if (response.success) {
 							const data = response.data;
 							display.grid.innerHTML = data.html;
-							display.weekRangeLabel.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> ${data.week_label}`;
-							display.sessionsCountLabel.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="m9 12 2 2 4-4"></path></svg> ${data.session_count} sessions totals aquesta setmana`;
+							display.weekRangeLabel.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> ' + data.week_label;
+							display.sessionsCountLabel.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="m9 12 2 2 4-4"></path></svg> ' + data.session_count + ' sessions totals aquesta setmana';
 							
 							scheduleWrapper.dataset.currentWeek = weekStartStr;
 							updateNavButtons(weekStartStr);
 							
-							const newUrl = `${config.baseUrl}?week_start=${weekStartStr}`;
+							const newUrl = config.baseUrl + '?week_start=' + weekStartStr;
 							history.pushState({week: weekStartStr}, '', newUrl);
 						} else {
 							throw new Error(response.data.message || 'Error desconegut en la resposta AJAX.');
@@ -1482,7 +1719,7 @@ function sportic_team_schedule_shortcode($atts) {
 					})
 					.catch(error => {
 						console.error('Error en la petició AJAX:', error);
-						display.grid.innerHTML = `<p style="color:red; text-align:center;">Hi ha hagut un error al carregar les dades. Si us plau, intenta-ho de nou.</p>`;
+						display.grid.innerHTML = '<p style="color:red; text-align:center;">Hi ha hagut un error al carregar les dades. Si us plau, intenta-ho de nou.</p>';
 					})
 					.finally(() => {
 						display.grid.classList.remove('loading');
@@ -1500,7 +1737,7 @@ function sportic_team_schedule_shortcode($atts) {
 					const year = d.getUTCFullYear();
 					const month = String(d.getUTCMonth() + 1).padStart(2, '0');
 					const day = String(d.getUTCDate()).padStart(2, '0');
-					return `${year}-${month}-${day}`;
+					return year + '-' + month + '-' + day;
 				}
 
 				nav.prev.addEventListener('click', function(e) {
@@ -1544,117 +1781,152 @@ if ( ! shortcode_exists('sportic_team_schedule') ) {
  * INICI FUNCIÓ – SUBSTITUEIX 1:1 LA VERSIÓ ACTUAL
  * =========================================================================*/
 function sportic_emmagatzemar_tot_com_array( $megaArray ) {
-	
-	   /* ---------- 1. Inicialització bàsica ---------- */
-	   global $wpdb;
-   
-	   $taula_prog = $wpdb->prefix . 'sportic_programacio';
-	   // Definim només la taula de bloqueig, ignorem la d'excepcions
-	   $taula_lock = defined( 'SPORTIC_LOCK_TABLE' ) ? $wpdb->prefix . SPORTIC_LOCK_TABLE : $wpdb->prefix . 'sportic_bloqueig';
-   
-	   if ( ! is_array( $megaArray ) || empty( $megaArray ) ) {
-		   return;
-	   }
-   
-	   $piscines_cfg   = sportic_unfile_get_pool_labels_sorted();
-	   $slugs_permesos = array_keys( $piscines_cfg );
-   
-	   /* ---------- 2. Contenidors ---------- */
-	   $prog_a_desar       = [];
-	   $bloqueigs_nous     = [];
-	   $setmanes_cache     = [];
-	   $dies_processats    = [];
-   
-	   /* ---------- 3. Processament de l’entrada ---------- */
-	   foreach ( $megaArray as $slug => $dies ) {
-		   if ( ! in_array( $slug, $slugs_permesos, true ) || ! is_array( $dies ) ) {
-			   continue;
-		   }
-   
-		   foreach ( $dies as $data => $hores ) {
-			   if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $data ) ) continue;
-			   
-			   try {
-				   $dt = new DateTime( $data );
-				   $dt->modify( 'monday this week' );
-				   $setmanes_cache[ $dt->format( 'Y-m-d' ) ] = true;
-			   } catch ( Exception $e ) { /* ignorat */ }
-   
-			   $dies_processats[$slug][$data] = true;
-   
-			   if ( ! is_array( $hores ) ) continue;
-   
-			   $hores_netes = [];
-			   foreach ( $hores as $hora => $carrils ) {
-				   if ( ! preg_match( '/^\d{2}:\d{2}$/', $hora ) || ! is_array( $carrils ) ) continue;
-   
-				   $carrils_nets = [];
-				   foreach ( $carrils as $idx => $val_nou_raw ) {
-					   
-					   // Neteja total: eliminem qualsevol prefix antic per obtenir el valor real
-					   $valor_string = (string) $val_nou_raw;
-					   $valor_net_a_desar = preg_replace('/^[@!]/', '', $valor_string);
- 
-					   if ($valor_net_a_desar === '' || $valor_net_a_desar === false) {
-						   $valor_net_a_desar = 'l';
-					   }
-					   
-					   // 1. Guardem el valor net a la programació
-					   $carrils_nets[$idx] = $valor_net_a_desar;
-					   
-					   // 2. Si l'usuari ha posat un bloqueig (!), el guardem a la taula de bloqueig
-					   if (strpos($valor_string, '!') === 0) {
-						   $bloqueigs_nous[] = [
-							   'piscina_slug' => $slug, 
-							   'dia_data' => $data,
-							   'hora' => $hora, 
-							   'carril_index' => (int) $idx
-						   ];
-					   }
-				   }
-				   $hores_netes[ $hora ] = $carrils_nets;
-			   }
-			   $prog_a_desar[ $slug ][ $data ] = $hores_netes;
-		   }
-	   }
-   
-	   /* ---------- 4. Guardem la programació ---------- */
-	   foreach ( $prog_a_desar as $slug => $dies ) {
-		   foreach ( $dies as $data => $hores_arr ) {
-			   $serial = maybe_serialize( $hores_arr );
-			   $wpdb->replace($taula_prog, ['piscina_slug' => $slug, 'dia_data' => $data, 'hores_serial' => $serial], ['%s','%s','%s']);
-		   }
-	   }
-   
-	   /* ---------- 5. Gestió dels bloquejos ---------- */
-	   // Primer esborrem els bloquejos antics dels dies que hem tocat
-	   foreach ( $dies_processats as $slug => $dies ) {
-		   foreach ( array_keys( $dies ) as $data ) {
-			   $wpdb->delete( $taula_lock, [ 'piscina_slug' => $slug, 'dia_data' => $data ], [ '%s', '%s' ] );
-		   }
-	   }
-	   // Després inserim els nous
-	   foreach ( $bloqueigs_nous as $fila ) {
-		   $wpdb->replace( $taula_lock, $fila, [ '%s', '%s', '%s', '%d' ] );
-	   }
-   
-	   /* ---------- 6. Purga de memòria cau (ADAPTAT PER A MULTILLOC) ---------- */
-	   // Obtenim el 'lloc' del formulari per netejar la memòria cau correcta.
-	   $lloc_slug_context_for_cache = isset($_POST['lloc']) ? sanitize_key($_POST['lloc']) : '';
   
-	   foreach ( array_keys( $setmanes_cache ) as $dia_inici_setmana ) {
-		   // NOMÉS esborrem el transient setmanal si sabem exactament QUIN 'lloc' s'està desant.
-		   if (!empty($lloc_slug_context_for_cache)) {
-			   delete_transient( 'sportic_week_data_' . $lloc_slug_context_for_cache . '_' . $dia_inici_setmana );
-		   }
-	   }
+	 /* ---------- 1. Inicialització bàsica ---------- */
+	 global $wpdb;
  
-	   wp_cache_delete( 'sportic_all_data_with_locks', 'sportic_data' );
-	   if (function_exists('sportic_clear_csv_transients')) {
-		   sportic_clear_csv_transients();
-	   }
-   }
-
+	 $taula_prog = $wpdb->prefix . 'sportic_programacio';
+	 $taula_lock = defined( 'SPORTIC_LOCK_TABLE' ) ? $wpdb->prefix . SPORTIC_LOCK_TABLE : $wpdb->prefix . 'sportic_bloqueig';
+	 $taula_excepcions = $wpdb->prefix . 'sportic_recurrent_exceptions';
+ 
+	 if ( ! is_array( $megaArray ) || empty( $megaArray ) ) {
+		 return;
+	 }
+ 
+	 $piscines_cfg   = sportic_unfile_get_pool_labels_sorted();
+	 $slugs_permesos = array_keys( $piscines_cfg );
+ 
+	 /* ---------- 2. Contenidors ---------- */
+	 $prog_a_desar       = [];
+	 $bloqueigs_nous     = [];
+	 $excepcions_a_afegir = [];
+	 $excepcions_a_treure = [];
+	 $setmanes_cache     = [];
+	 $dies_processats    = [];
+ 
+	 // Carreguem l'estat previ per comparar
+	 $dates_afectades = [];
+	 foreach ( array_keys($megaArray) as $slug_piscina) {
+		 if (isset($megaArray[$slug_piscina]) && is_array($megaArray[$slug_piscina])) {
+			 $dates_afectades = array_merge($dates_afectades, array_keys($megaArray[$slug_piscina]));
+		 }
+	 }
+	 $dates_afectades = array_unique($dates_afectades);
+	 
+	 $estat_previ = [];
+	 if(!empty($dates_afectades)) {
+		 $data_inici_rang = min($dates_afectades);
+		 $data_fi_rang = max($dates_afectades);
+		 $dies_diff = (new DateTime($data_inici_rang))->diff(new DateTime($data_fi_rang))->days;
+		 $estat_previ = sportic_carregar_finestra_bd($data_inici_rang, $dies_diff, 0);
+	 }
+ 
+	 /* ---------- 3. Processament de l’entrada ---------- */
+	 foreach ( $megaArray as $slug => $dies ) {
+		 if ( ! in_array( $slug, $slugs_permesos, true ) || ! is_array( $dies ) ) {
+			 continue;
+		 }
+ 
+		 foreach ( $dies as $data => $hores ) {
+			 if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $data ) ) continue;
+			 
+			 try {
+				 $dt = new DateTime( $data );
+				 $dt->modify( 'monday this week' );
+				 $setmanes_cache[ $dt->format( 'Y-m-d' ) ] = true;
+			 } catch ( Exception $e ) { /* ignorat */ }
+ 
+			 $dies_processats[$slug][$data] = true;
+ 
+			 if ( ! is_array( $hores ) ) continue;
+ 
+			 $hores_netes = [];
+			 foreach ( $hores as $hora => $carrils ) {
+				 if ( ! preg_match( '/^\d{2}:\d{2}$/', $hora ) || ! is_array( $carrils ) ) continue;
+ 
+				 $carrils_nets = [];
+				 foreach ( $carrils as $idx => $val_nou_raw ) {
+					 
+					 // Lògica de detecció d'excepcions (aquesta part ja era correcta)
+					 $valor_previ_raw = $estat_previ[$slug][$data][$hora][$idx] ?? 'l';
+					 $era_recurrent = (strpos($valor_previ_raw, '@') === 0);
+					 $es_recurrent_ara = (strpos($val_nou_raw, '@') === 0);
+ 
+					 $fila_excepcio = [
+						 'piscina_slug' => $slug, 'dia_data' => $data,
+						 'hora' => $hora, 'carril_index' => (int) $idx,
+					 ];
+ 
+					 if ($era_recurrent && !$es_recurrent_ara) {
+						 $excepcions_a_afegir[] = $fila_excepcio;
+					 } elseif (!$era_recurrent && $es_recurrent_ara) {
+						 $excepcions_a_treure[] = $fila_excepcio;
+					 }
+					 
+					 // =========================================================================
+					 // INICI DE LA CORRECCIÓ DEFINITIVA
+					 // =========================================================================
+					 // Aquesta és la nova lògica, més simple i robusta.
+					 // El valor a desar a la taula de programació és SEMPRE el valor base
+					 // del que ha enviat l'usuari, sense cap prefix.
+					 
+					 $valor_net_a_desar = preg_replace('/^[@!]/', '', (string)$val_nou_raw);
+					 if ($valor_net_a_desar === '' || $valor_net_a_desar === false) {
+						 $valor_net_a_desar = 'l';
+					 }
+					 
+					 // Guardem el valor net a la programació
+					 $carrils_nets[$idx] = $valor_net_a_desar;
+					 
+					 // Gestionem el bloqueig per separat
+					 if (strpos((string)$val_nou_raw, '!') === 0) {
+						 $bloqueigs_nous[] = $fila_excepcio;
+					 }
+					 // =========================================================================
+					 // FI DE LA CORRECCIÓ DEFINITIVA
+					 // =========================================================================
+				 }
+				 $hores_netes[ $hora ] = $carrils_nets;
+			 }
+			 $prog_a_desar[ $slug ][ $data ] = $hores_netes;
+		 }
+	 }
+ 
+	 /* ---------- 4. Guardem la programació ---------- */
+	 foreach ( $prog_a_desar as $slug => $dies ) {
+		 foreach ( $dies as $data => $hores_arr ) {
+			 $serial = maybe_serialize( $hores_arr );
+			 $wpdb->replace($taula_prog, ['piscina_slug' => $slug, 'dia_data' => $data, 'hores_serial' => $serial], ['%s','%s','%s']);
+		 }
+	 }
+ 
+	 /* ---------- 5. Gestió dels bloquejos ---------- */
+	 foreach ( $dies_processats as $slug => $dies ) {
+		 foreach ( array_keys( $dies ) as $data ) {
+			 $wpdb->delete( $taula_lock, [ 'piscina_slug' => $slug, 'dia_data' => $data ], [ '%s', '%s' ] );
+		 }
+	 }
+	 foreach ( $bloqueigs_nous as $fila ) {
+		 $wpdb->replace( $taula_lock, $fila, [ '%s', '%s', '%s', '%d' ] );
+	 }
+ 
+	 /* ---------- 6. Gestió de les excepcions ---------- */
+	 foreach ( $excepcions_a_afegir as $fila ) {
+		 $wpdb->replace( $taula_excepcions, $fila, [ '%s', '%s', '%s', '%d' ] );
+	 }
+	 foreach ( $excepcions_a_treure as $fila ) {
+		 $wpdb->delete( $taula_excepcions, $fila, [ '%s', '%s', '%s', '%d' ] );
+	 }
+ 
+	 /* ---------- 7. Purga de memòria cau ---------- */
+	 foreach ( array_keys( $setmanes_cache ) as $dia_inici_setmana ) {
+		 delete_transient( 'sportic_week_data_' . $dia_inici_setmana );
+	 }
+	 wp_cache_delete( 'sportic_all_data_with_locks', 'sportic_data' );
+	 if (function_exists('sportic_clear_csv_transients')) {
+		 sportic_clear_csv_transients();
+	 }
+ }   
  /* =========================================================================
  * FI FUNCIÓ – NO TOQUIS RES PER SOTA AQUEST COMENTARI
  * =========================================================================*/
@@ -1696,68 +1968,1045 @@ function sportic_emmagatzemar_tot_com_array( $megaArray ) {
 	* Registre de submenu "Configuració" dins el menú "SporTIC"
 	*/
 	add_action('admin_menu', 'sportic_unfile_admin_menu');
-function sportic_unfile_admin_menu() {
-		// Pàgina principal (existent):
-		add_menu_page(
-			'SporTIC',
-			'SporTIC',
-			'manage_options',
-			'sportic-onefile-menu',
-			'sportic_unfile_mostrar_pagina'
-		);
+	function sportic_unfile_admin_menu() {
+	// Pàgina principal (existent):
+	add_menu_page(
+		'SporTIC',
+		'SporTIC',
+		'manage_options',
+		'sportic-onefile-menu',
+		'sportic_unfile_mostrar_pagina'
+	);
+
+	// Submenú de Plantilles (existent):
+	add_submenu_page(
+		'sportic-onefile-menu',
+		'Plantilles',
+		'Plantilles',
+		'manage_options',
+		'sportic-onefile-templates',
+		'sportic_unfile_plantilles_page'
+	);
 	
-		// Submenú de Plantilles (existent):
-		add_submenu_page(
-			'sportic-onefile-menu',
-			'Plantilles',
-			'Plantilles',
-			'manage_options',
-			'sportic-onefile-templates',
-			'sportic_unfile_plantilles_page'
-		);
-	
-		// Submenú de Configuració (existent):
-		add_submenu_page(
-			'sportic-onefile-menu',
-			'Configuració',
-			'Configuració',
-			'manage_options',
-			'sportic-onefile-settings',
-			'sportic_unfile_settings_page'
-		);
+
+	// Submenú de Configuració (existent):
+	add_submenu_page(
+		'sportic-onefile-menu',
+		'Configuració',
+		'Configuració',
+		'manage_options',
+		'sportic-onefile-settings',
+		'sportic_unfile_settings_page'
+	);
+}
+
+
+/* ============================================================================
+ * INICI DE LA SOLUCIÓ DEFINITIVA: Neteja de la memòria cau i de la BD
+ * Aquest codi és segur i conté la lògica per netejar els "esdeveniments fantasma".
+ * ============================================================================
+ */
+
+if ( ! function_exists('sportic_cleanup_orphaned_recurrent_cells') ) {
+	/**
+	 * [NOVA FUNCIÓ CLAU] Neteja les cel·les de la taula de programació que
+	 * pertanyien a un esdeveniment recurrent que ha estat modificat o esborrat.
+	 *
+	 * @param int $post_id L'ID de l'esdeveniment recurrent.
+	 */
+	function sportic_cleanup_orphaned_recurrent_cells($post_id) {
+		global $wpdb;
+		$taula_programacio = $wpdb->prefix . 'sportic_programacio';
+		$taula_excepcions = $wpdb->prefix . 'sportic_recurrent_exceptions';
+		$all_pools_config = sportic_unfile_get_pool_labels_sorted();
+
+		// 1. Obtenim els blocs de l'esdeveniment tal com estaven abans de l'acció
+		$blocks = get_post_meta($post_id, '_sportic_recurrent_blocks', true);
+		if (!is_array($blocks) || empty($blocks)) {
+			return; // No hi ha res a netejar
+		}
+
+		// 2. Generem un mapa de totes les cel·les que aquest esdeveniment ocupava
+		$cells_to_clear_map = [];
+		foreach ($blocks as $block) {
+			$slug = $block['piscina_slug'];
+			$activity_desc = $block['activity_description'] ?? '';
+			if (empty($slug) || empty($activity_desc) || !isset($all_pools_config[$slug])) continue;
+			
+			$num_lanes = $all_pools_config[$slug]['lanes'] ?? 0;
+			if (!isset($block['date_ranges']) || !is_array($block['date_ranges'])) continue;
+
+			foreach ($block['date_ranges'] as $range) {
+				try {
+					$start = new DateTime($range['start']);
+					$end = (new DateTime($range['end']))->modify('+1 day');
+					$period = new DatePeriod($start, new DateInterval('P1D'), $end);
+					if (!isset($block['time_lane_rules']) || !is_array($block['time_lane_rules'])) continue;
+
+					foreach ($period as $date) {
+						$day_of_week = (int) $date->format('N');
+						if (empty($range['days']) || in_array($day_of_week, $range['days'])) {
+							$date_str = $date->format('Y-m-d');
+							foreach ($block['time_lane_rules'] as $rule) {
+								$start_h = new DateTime($rule['start']);
+								$end_h = new DateTime($rule['end']);
+								$lanes = !empty($rule['lanes']) ? array_map('intval', explode(',', $rule['lanes'])) : range(1, $num_lanes);
+								for ($h = clone $start_h; $h < $end_h; $h->modify('+15 minutes')) {
+									foreach ($lanes as $lane_1) {
+										// Guardem la descripció per poder verificar abans d'esborrar
+										$cells_to_clear_map[$date_str][$slug][$h->format('H:i')][$lane_1 - 1] = $activity_desc;
+									}
+								}
+							}
+						}
+					}
+				} catch (Exception $e) { continue; }
+			}
+		}
+
+		if (empty($cells_to_clear_map)) {
+			return;
+		}
+
+		// 3. Consultem les excepcions per no esborrar cel·les que l'usuari va eliminar manualment
+		$dates_afectades = array_keys($cells_to_clear_map);
+		$placeholders = implode(', ', array_fill(0, count($dates_afectades), '%s'));
+		$exceptions_raw = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $taula_excepcions WHERE dia_data IN ($placeholders)", $dates_afectades), ARRAY_A);
+		
+		$exceptions_map = [];
+		foreach ($exceptions_raw as $ex) {
+			$exceptions_map[$ex['dia_data']][$ex['piscina_slug']][$ex['hora']][(int)$ex['carril_index']] = true;
+		}
+
+		// 4. Agrupem les cel·les a netejar per entrada de la base de dades (slug + data)
+		$updates_by_schedule_entry = [];
+		foreach ($cells_to_clear_map as $date => $pools) {
+			foreach ($pools as $slug => $hours) {
+				foreach ($hours as $hour => $lanes) {
+					foreach ($lanes as $lane_idx_0 => $expected_desc) {
+						// Important: No netegem si hi ha una excepció per a aquesta cel·la
+						if (isset($exceptions_map[$date][$slug][$hour][$lane_idx_0])) {
+							continue;
+						}
+						// Guardem la cel·la a netejar i el valor que esperem trobar-hi
+						$updates_by_schedule_entry[$slug][$date][$hour][$lane_idx_0] = $expected_desc;
+					}
+				}
+			}
+		}
+
+		// 5. Executem la neteja a la base de dades
+		foreach ($updates_by_schedule_entry as $slug => $dates) {
+			foreach ($dates as $date => $hours_to_update) {
+				$current_schedule_entry = $wpdb->get_var($wpdb->prepare("SELECT hores_serial FROM $taula_programacio WHERE piscina_slug = %s AND dia_data = %s", $slug, $date));
+				
+				if ($current_schedule_entry) {
+					$schedule_array = @maybe_unserialize($current_schedule_entry);
+					if (is_array($schedule_array)) {
+						$modified = false;
+						foreach ($hours_to_update as $hour => $lanes_to_clear) {
+							if (isset($schedule_array[$hour]) && is_array($schedule_array[$hour])) {
+								foreach ($lanes_to_clear as $lane_idx_0 => $expected_desc) {
+									// Comprovació final: només netegem si el valor actual coincideix amb el de l'esdeveniment
+									if (isset($schedule_array[$hour][$lane_idx_0]) && $schedule_array[$hour][$lane_idx_0] === $expected_desc) {
+										$schedule_array[$hour][$lane_idx_0] = 'l'; // Restablir a lliure
+										$modified = true;
+									}
+								}
+							}
+						}
+						if ($modified) {
+							$wpdb->update(
+								$taula_programacio,
+								['hores_serial' => maybe_serialize($schedule_array)],
+								['piscina_slug' => $slug, 'dia_data' => $date]
+							);
+						}
+					}
+				}
+			}
+		}
 	}
+}
+
+if ( ! function_exists('sportic_clear_all_relevant_caches') ) {
+	/**
+	 * Funció centralitzada per netejar TOTES les memòries cau rellevants.
+	 */
+	function sportic_clear_all_relevant_caches() {
+		if (function_exists('wp_cache_delete')) {
+			wp_cache_delete('sportic_all_data_with_locks', 'sportic_data');
+		}
+		if (function_exists('sportic_clear_all_week_transients')) {
+			sportic_clear_all_week_transients();
+		}
+		if (function_exists('sportic_clear_csv_transients')) {
+			sportic_clear_csv_transients();
+		}
+	}
+}
+
+if ( ! function_exists('sportic_clear_cache_on_recurrent_event_change') ) {
+	/**
+	 * S'activa quan un post canvia d'estat (ex: de 'publicat' a 'paperera').
+	 */
+	function sportic_clear_cache_on_recurrent_event_change($new_status, $old_status, $post) {
+		if (get_post_type($post) !== 'sportic_recurrent') {
+			return;
+		}
+
+		// Si l'estat antic era 'publish', significa que l'esdeveniment era visible i ara ja no ho serà.
+		// Aquest és el moment de netejar les seves dades de la BD.
+		if ($old_status === 'publish' && $new_status !== 'publish') {
+			sportic_cleanup_orphaned_recurrent_cells($post->ID);
+		}
+		
+		// Sempre netegem la memòria cau si l'estat canvia des de o cap a 'publish'.
+		if ($old_status === 'publish' || $new_status === 'publish') {
+			sportic_clear_all_relevant_caches();
+		}
+	}
+	add_action('transition_post_status', 'sportic_clear_cache_on_recurrent_event_change', 10, 3);
+}
+
+if ( ! function_exists('sportic_clear_cache_on_recurrent_event_delete') ) {
+	/**
+	 * S'activa just abans que un post s'esborri permanentment.
+	 */
+	function sportic_clear_cache_on_recurrent_event_delete($post_id) {
+		// A l'acció 'before_delete_post', encara tenim accés al post meta.
+		if (get_post_type($post_id) === 'sportic_recurrent') {
+			// Primer netegem les dades de la BD
+			sportic_cleanup_orphaned_recurrent_cells($post_id);
+			// Després netegem la memòria cau
+			sportic_clear_all_relevant_caches();
+		}
+	}
+	add_action('before_delete_post', 'sportic_clear_cache_on_recurrent_event_delete', 10, 1);
+}
+
+/* ============================================================================
+ * FI DE LA SOLUCIÓ DEFINITIVA
+ * ============================================================================
+ */
 
 
 
+/**
+ * Afegeix les meta boxes per al CPT d'esdeveniments recurrents.
+ */
+function sportic_recurrent_add_meta_boxes() {
+	add_meta_box(
+		'sportic_recurrent_details_metabox',
+		'Detalls de l\'Esdeveniment Recurrent',
+		'sportic_recurrent_details_metabox_html',
+		'sportic_recurrent',
+		'normal',
+		'high'
+	);
+}
+add_action( 'add_meta_boxes', 'sportic_recurrent_add_meta_boxes' );
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/**
+ * Mostra el HTML de la meta box.
+ */
+/**
+ * Mostra el HTML de la meta box. (MODIFICADA per al selector visual de carrils)
+ */
+function sportic_recurrent_details_metabox_html( $post ) {
+	  // --- LÒGICA PER MOSTRAR EL POPUP D'ERROR (SI N'HI HA) ---
+	  $error_transient_key = 'sportic_recurrent_error_notice_' . $post->ID;
+	  if ( $error_message = get_transient( $error_transient_key ) ) {
+		  $current_url = get_edit_post_link( $post->ID, 'raw' );
+		  $clean_reload_url = remove_query_arg( 'sportic_conflict', $current_url );
+		  ?>
+		  <div id="sportic-conflict-modal-overlay" style="display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 10000; justify-content: center; align-items: center;">
+			  <div id="sportic-conflict-modal-content" style="background-color: #fff; padding: 25px 30px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); max-width: 550px; text-align: center;">
+				  <h2 style="margin-top: 0; color: #d63638; font-size: 1.5em;"><span class="dashicons dashicons-warning" style="font-size: 1.2em; vertical-align: middle; margin-right: 8px;"></span>Conflicte Detectat</h2>
+				  <p id="sportic-conflict-modal-message" style="font-size: 1.1em; line-height: 1.6; color: #333;"><?php echo wp_kses_post( $error_message ); ?></p>
+				  <a href="<?php echo esc_url( $clean_reload_url ); ?>" class="button button-primary button-large" style="margin-top: 20px; text-decoration: none;">Entesos</a>
+			  </div>
+		  </div>
+		  <?php
+		  delete_transient( $error_transient_key );
+	  }
+  
+	  // --- LÒGICA PER REPOBLAR EL FORMULARI ---
+	  $unsaved_data = get_transient( 'sportic_recurrent_unsaved_data_' . $post->ID );
+	  if ( $unsaved_data !== false && isset( $unsaved_data['recurrent_blocks'] ) ) {
+		  $blocks = $unsaved_data['recurrent_blocks'];
+		  delete_transient( 'sportic_recurrent_unsaved_data_' . $post->ID );
+	  } else {
+		  $blocks = get_post_meta( $post->ID, '_sportic_recurrent_blocks', true );
+	  }
+  
+	  if ( ! is_array( $blocks ) ) $blocks = [];
+	  wp_nonce_field( 'sportic_recurrent_save_metabox', 'sportic_recurrent_nonce' );
+	  
+	  $all_pools = sportic_unfile_get_pool_labels_sorted();
+	  $custom_letters = get_option( 'sportic_unfile_custom_letters', [] );
+	  
+	  $subitems_map = [];
+	  foreach ($custom_letters as $letter_info) {
+		  if (!empty($letter_info['letter']) && !empty($letter_info['subitems'])) {
+			  $subitems_map[$letter_info['letter']] = wp_list_pluck($letter_info['subitems'], 'name');
+		  }
+	  }
+	  $time_slots = sportic_get_configured_time_slots();
+	  ?>
+	  
+	  <style>
+		  .sportic-meta-container { display: flex; flex-direction: column; gap: 20px; }
+		  .activity-block { background: #fff; border: 1px solid #ccd0d4; border-radius: 4px; overflow: hidden; transition: box-shadow 0.2s ease-in-out; }
+		  .activity-block.is-closed .activity-block-content { display: none; }
+		  .activity-block.is-open .toggle-arrow { transform: rotate(180deg); }
+		  .activity-block-header { background: #f6f7f7; padding: 10px 15px; border-bottom: 1px solid #ccd0d4; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+		  .activity-block-header h3 { font-size: 1.1em; margin: 0; color: #2c3338; }
+		  .activity-block-header .header-actions { display: flex; align-items: center; gap: 10px; }
+		  .activity-block-header .toggle-arrow { color: #50575e; transition: transform 0.2s ease-in-out; }
+		  .activity-block-content { padding: 20px; display: grid; gap: 25px; background: #fafafa; }
+		  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px 20px; align-items: end; }
+		  .form-field > label, .section-title { display: block; font-weight: 600; margin-bottom: 8px; font-size: 1em; color: #3c434a; }
+		  .form-field input, .form-field select { width: 100%; }
+		  .repeater-container { display: flex; flex-direction: column; gap: 10px; }
+		  .repeater-row { display: flex; gap: 10px; align-items: flex-end; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 4px; flex-wrap: wrap; }
+		  .repeater-row:hover { border-color: #999; }
+		  .repeater-row .form-field { margin-bottom: 0; }
+		  .repeater-row .form-field label { font-size: 0.9em; font-weight: normal; color: #50575e; }
+		  .time-lane-rule-row > div:nth-child(1), .time-lane-rule-row > div:nth-child(2) { flex-basis: 120px; flex-shrink: 0; }
+		  .time-lane-rule-row .lanes-selector-wrapper { flex: 1 1 300px; }
+		  .lanes-selector { display: flex; gap: 4px; background: #f0f0f1; border: 1px solid #ddd; padding: 8px; border-radius: 4px; width: 100%; box-sizing: border-box; }
+		  .lanes-selector .lane-box { flex: 1 1 0; border: 1px solid #b4b9be; background-color: #fff; padding: 8px 5px; cursor: pointer; border-radius: 3px; user-select: none; transition: background-color 0.2s, color 0.2s; text-align: center; min-width: 25px; font-size: 0.85em; }
+		  .lanes-selector .lane-box.selected { background-color: #2271b1; border-color: #2271b1; color: #fff; font-weight: bold; }
+		  .range-row > div { flex: 1 1 200px; }
+		  .range-row .days-of-week { flex-basis: 100%; margin-top: 10px; }
+		  .days-of-week div label { display: inline-flex; align-items: center; margin-right: 15px; font-weight: normal; }
+		  .days-of-week input[type="checkbox"] { margin-right: 5px; }
+		  .action-cell { flex-shrink: 0; align-self: center; padding-bottom: 5px; }
+		  .button-icon { background: none; border: none; color: #787c82; cursor: pointer; padding: 5px; border-radius: 50%; }
+		  .button-icon:hover { background: #e0e0e0; color: #d63638; }
+		  .button.button-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; line-height: 1; }
+		  .button.button-secondary .dashicons { line-height: 1; font-size: 18px; vertical-align: middle; }
+		  .bulk-actions-bar { padding: 10px 0; margin-bottom: 15px; display: flex; gap: 10px; }
+		  .subitem-selector-container { transition: opacity 0.3s; }
+		  .subitem-selector-container.hidden { display: none; opacity: 0; }
+		  .sportic-force-overwrite-wrapper {
+			  margin-top: 25px; padding: 15px; background-color: #fff8e1;
+			  border: 1px solid #ffecb3; border-radius: 4px;
+		  }
+		  .sportic-force-overwrite-wrapper label {
+			  display: flex; align-items: center; font-weight: bold; color: #5f4300;
+		  }
+		  .sportic-force-overwrite-wrapper input[type="checkbox"] {
+			  margin-right: 10px; width: 18px; height: 18px;
+		  }
+		  .sportic-force-overwrite-wrapper p {
+			  margin: 5px 0 0 28px; font-size: 0.9em; color: #6d4c00;
+		  }
+	  </style>
+  
+	  <div class="bulk-actions-bar">
+		  <button type="button" class="button bulk-toggle-btn" data-action="expand">Desplega-ho Tot</button>
+		  <button type="button" class="button bulk-toggle-btn" data-action="collapse">Plega-ho Tot</button>
+	  </div>
+  
+	  <div id="activity-blocks-container" class="sportic-meta-container">
+		  <?php if ( ! empty( $blocks ) ) : foreach ( $blocks as $block_index => $block_data ) : ?>
+			  <?php sportic_render_activity_block($block_index, $block_data, $all_pools, $custom_letters, $subitems_map, $time_slots); ?>
+		  <?php endforeach; else: ?>
+			  <p>Encara no hi ha cap bloc d'activitat. Fes clic al botó de sota per afegir-ne un.</p>
+		  <?php endif; ?>
+	  </div>
+	  <button type="button" id="add-activity-block-btn" class="button button-primary button-large" style="margin-top: 20px;">+ Afegeix Bloc d'Activitat</button>
+	  
+	  <div class="bulk-actions-bar" style="margin-top: 15px;">
+		  <button type="button" class="button bulk-toggle-btn" data-action="expand">Desplega-ho Tot</button>
+		  <button type="button" class="button bulk-toggle-btn" data-action="collapse">Plega-ho Tot</button>
+	  </div>
+ 
+	  <div class="sportic-force-overwrite-wrapper">
+		  <label for="sportic_force_overwrite_exceptions">
+			  <input type="checkbox" id="sportic_force_overwrite_exceptions" name="sportic_force_overwrite_exceptions" value="1">
+			  Sobreescriure les cel·les eliminades manualment
+		  </label>
+		  <p>Marca aquesta opció si vols que aquest esdeveniment recurrent torni a aparèixer a totes les seves cel·les, ignorant les eliminacions manuals que hagis fet a la graella principal.</p>
+	  </div>
+  
+	  <template id="activity-block-template">
+		  <?php sportic_render_activity_block('__BLOCK_INDEX__', [], $all_pools, $custom_letters, $subitems_map, $time_slots); ?>
+	  </template>
+	  
+	  <template id="time-lane-rule-template">
+		  <div class="repeater-row time-lane-rule-row">
+			  <div class="form-field">
+				  <label>De:</label>
+				  <select name="recurrent_blocks[__BLOCK_INDEX__][time_lane_rules][__RULE_INDEX__][start]">
+					  <?php foreach ($time_slots as $time): ?>
+						  <option value="<?php echo $time; ?>" <?php selected('09:00', $time); ?>><?php echo $time; ?></option>
+					  <?php endforeach; ?>
+				  </select>
+			  </div>
+			  <div class="form-field">
+				  <label>A:</label>
+				  <select name="recurrent_blocks[__BLOCK_INDEX__][time_lane_rules][__RULE_INDEX__][end]">
+					  <?php foreach ($time_slots as $time): ?>
+						  <option value="<?php echo $time; ?>" <?php selected('10:00', $time); ?>><?php echo $time; ?></option>
+					  <?php endforeach; ?>
+				  </select>
+			  </div>
+			  <div class="lanes-selector-wrapper form-field"><label>Carrils:</label><div class="lanes-selector"></div><input type="hidden" class="hidden-lanes-input" name="recurrent_blocks[__BLOCK_INDEX__][time_lane_rules][__RULE_INDEX__][lanes]" value=""></div>
+			  <div class="action-cell"><button type="button" class="button-icon remove-time-lane-btn" title="Elimina franja"><span class="dashicons dashicons-trash"></span></button></div>
+		  </div>
+	  </template>
+  
+	  <script>
+	  document.addEventListener('DOMContentLoaded', function() {
+		  const subitemMap = <?php echo json_encode($subitems_map); ?>;
+		  const mainContainer = document.getElementById('activity-blocks-container');
+		  const addBlockBtn = document.getElementById('add-activity-block-btn');
+		  const blockTemplate = document.getElementById('activity-block-template');
+		  const timeLaneTemplate = document.getElementById('time-lane-rule-template');
+		  function validateTimeRange(startSelectElement) {
+			  const row = startSelectElement.closest('.time-lane-rule-row');
+			  if (!row) return;
+			  const endSelectElement = row.querySelector('select[name*="[end]"]');
+			  if (!endSelectElement) return;
+			  const selectedStartTime = startSelectElement.value;
+			  let firstAvailableOptionValue = null;
+			  for (const option of endSelectElement.options) {
+				  if (option.value < selectedStartTime) {
+					  option.disabled = true;
+				  } else {
+					  option.disabled = false;
+					  if (firstAvailableOptionValue === null) {
+						  firstAvailableOptionValue = option.value;
+					  }
+				  }
+			  }
+			  if (endSelectElement.options[endSelectElement.selectedIndex].disabled) {
+				  if (firstAvailableOptionValue !== null) {
+					  endSelectElement.value = firstAvailableOptionValue;
+				  }
+			  }
+		  }
+		  function updateSubitemSelector(activitySelectElement, isInitialLoad = false) {
+			  const block = activitySelectElement.closest('.activity-block');
+			  if (!block) return;
+			  const subitemContainer = block.querySelector('.subitem-selector-container');
+			  const subitemSelect = block.querySelector('.subitem-selector');
+			  if (!subitemContainer || !subitemSelect) return;
+			  const savedSubitem = subitemSelect.dataset.savedValue || '';
+			  const selectedLetter = activitySelectElement.value;
+			  const subitemsForLetter = subitemMap[selectedLetter] || [];
+			  subitemSelect.innerHTML = '';
+			  if (subitemsForLetter.length > 0) {
+				  subitemContainer.classList.remove('hidden');
+				  const defaultOption = document.createElement('option');
+				  defaultOption.value = '';
+				  defaultOption.textContent = '-- Cap sub-ítem --';
+				  subitemSelect.appendChild(defaultOption);
+				  subitemsForLetter.forEach(subitem => {
+					  const option = document.createElement('option');
+					  option.value = subitem;
+					  option.textContent = subitem;
+					  subitemSelect.appendChild(option);
+				  });
+				  if (isInitialLoad) {
+					  subitemSelect.value = savedSubitem;
+				  }
+			  } else {
+				  subitemContainer.classList.add('hidden');
+				  subitemSelect.value = '';
+			  }
+		  }
+		  function updateBlockTitle(blockElement) {
+			  const poolSelect = blockElement.querySelector('.pool-select');
+			  const letterSelect = blockElement.querySelector('.activity-letter-select');
+			  const titleElement = blockElement.querySelector('.block-title');
+			  if (!poolSelect || !letterSelect || !titleElement) return;
+			  let title = 'Bloc d\'Activitat';
+			  const poolOption = poolSelect.options[poolSelect.selectedIndex];
+			  const letterOption = letterSelect.options[letterSelect.selectedIndex];
+			  if (poolOption && poolOption.value) title = 'Pavelló: ' + poolOption.text;
+			  if (letterOption && letterOption.value) {
+				  const letterText = letterOption.dataset.title || `Activitat ${letterOption.value.toUpperCase()}`;
+				  title += ' - ' + letterText;
+			  }
+			  titleElement.textContent = title;
+		  }
+		  addBlockBtn.addEventListener('click', function() {
+			  const newIndex = Date.now();
+			  const newHtml = blockTemplate.innerHTML.replace(/__BLOCK_INDEX__/g, newIndex);
+			  mainContainer.insertAdjacentHTML('beforeend', newHtml);
+			  const newBlock = mainContainer.lastElementChild;
+			  const newActivitySelect = newBlock.querySelector('.activity-letter-select');
+			  if(newActivitySelect) {
+				  updateSubitemSelector(newActivitySelect, true);
+			  }
+			  const newStartSelect = newBlock.querySelector('select[name*="[start]"]');
+			  if(newStartSelect) {
+				  validateTimeRange(newStartSelect);
+			  }
+			  if (newBlock) newBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		  });
+		  mainContainer.addEventListener('click', function(e) {
+			  const target = e.target;
+			  const button = target.closest('button');
+			  const header = target.closest('.activity-block-header');
+			  const laneBox = target.closest('.lane-box');
+			  if (button) {
+				  const block = button.closest('.activity-block');
+				  if (button.matches('.remove-activity-block-btn, .remove-activity-block-btn *')) {
+					  if (confirm('Segur que vols eliminar aquest bloc complet?')) block.remove();
+				  } else if (button.matches('.add-time-lane-btn, .add-time-lane-btn *')) {
+					  const container = block.querySelector('.time-lanes-container');
+					  const blockIndex = block.dataset.index;
+					  const ruleIndex = Date.now();
+					  container.insertAdjacentHTML('beforeend', timeLaneTemplate.innerHTML.replace(/__BLOCK_INDEX__/g, blockIndex).replace(/__RULE_INDEX__/g, ruleIndex));
+					  const newRowElement = container.lastElementChild;
+					  const poolSelect = block.querySelector('.pool-select');
+					  const numLanes = parseInt(poolSelect.options[poolSelect.selectedIndex].dataset.lanes, 10);
+					  const newLanesSelector = newRowElement.querySelector('.lanes-selector');
+					  if (numLanes > 0) for (let i = 1; i <= numLanes; i++) newLanesSelector.innerHTML += `<div class="lane-box" data-lane="${i}">${i}</div>`;
+					  const newStartSelect = newRowElement.querySelector('select[name*="[start]"]');
+					  if (newStartSelect) {
+						  validateTimeRange(newStartSelect);
+					  }
+				  } else if (button.matches('.remove-time-lane-btn, .remove-time-lane-btn *')) {
+					  button.closest('.repeater-row').remove();
+				  } else if (button.matches('.add-range-btn, .add-range-btn *')) {
+					  const container = block.querySelector('.date-ranges-container');
+					  const blockIndex = block.dataset.index;
+					  const rangeIndex = Date.now();
+					  const newRangeHtml = `<div class="repeater-row range-row"><div class="form-field"><label>Data Inici</label><input type="date" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][start]"></div><div class="form-field"><label>Data Fi</label><input type="date" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][end]"></div><div class="days-of-week form-field"><label>Dies de la setmana:</label><div><label><input type="checkbox" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][days][]" value="1"> Dl</label><label><input type="checkbox" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][days][]" value="2"> Dt</label><label><input type="checkbox" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][days][]" value="3"> Dc</label><label><input type="checkbox" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][days][]" value="4"> Dj</label><label><input type="checkbox" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][days][]" value="5"> Dv</label><label><input type="checkbox" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][days][]" value="6"> Ds</label><label><input type="checkbox" name="recurrent_blocks[${blockIndex}][date_ranges][${rangeIndex}][days][]" value="7"> Dg</label></div></div><div class="action-cell"><button type="button" class="button-icon remove-range-btn" title="Elimina període"><span class="dashicons dashicons-trash"></span></button></div></div>`;
+					  container.insertAdjacentHTML('beforeend', newRangeHtml);
+				  } else if (button.matches('.remove-range-btn, .remove-range-btn *')) {
+					  button.closest('.repeater-row').remove();
+				  }
+			  } else if (laneBox) {
+				  laneBox.classList.toggle('selected');
+				  const wrapper = laneBox.closest('.lanes-selector-wrapper');
+				  const hiddenInput = wrapper.querySelector('.hidden-lanes-input');
+				  const selectedLanes = [];
+				  wrapper.querySelectorAll('.lane-box.selected').forEach(box => selectedLanes.push(box.dataset.lane));
+				  hiddenInput.value = selectedLanes.join(',');
+			  } else if (header) {
+				   const block = header.closest('.activity-block');
+				   block.classList.toggle('is-closed');
+				   block.classList.toggle('is-open');
+				   const arrow = header.querySelector('.toggle-arrow');
+				   arrow.classList.toggle('dashicons-arrow-down-alt2');
+				   arrow.classList.toggle('dashicons-arrow-up-alt2');
+			  }
+		  });
+		  mainContainer.addEventListener('change', function(e) {
+			  const target = e.target;
+			  if (target.classList.contains('pool-select') || target.classList.contains('activity-letter-select')) {
+				  const block = target.closest('.activity-block');
+				  updateBlockTitle(block);
+				  if(target.classList.contains('activity-letter-select')){
+					  updateSubitemSelector(target);
+				  }
+				  if(target.classList.contains('pool-select')) {
+					  const allLaneSelectors = block.querySelectorAll('.lanes-selector');
+					  const allHiddenInputs = block.querySelectorAll('.hidden-lanes-input');
+					  const numLanes = parseInt(target.options[target.selectedIndex].dataset.lanes, 10);
+					  allHiddenInputs.forEach(input => input.value = '');
+					  allLaneSelectors.forEach(selector => {
+						  selector.innerHTML = '';
+						  if (numLanes > 0) for (let i = 1; i <= numLanes; i++) selector.innerHTML += `<div class="lane-box" data-lane="${i}">${i}</div>`;
+					  });
+				  }
+			  }
+			  if (target.matches('select[name*="[start]"]')) {
+				  validateTimeRange(target);
+			  }
+		  });
+		  document.querySelectorAll('.bulk-toggle-btn').forEach(button => {
+			  button.addEventListener('click', function() {
+				  const action = this.dataset.action;
+				  const blocks = mainContainer.querySelectorAll('.activity-block');
+				  blocks.forEach(block => {
+					  const arrow = block.querySelector('.toggle-arrow');
+					  if (action === 'expand') {
+						  block.classList.remove('is-closed');
+						  block.classList.add('is-open');
+						  arrow.classList.remove('dashicons-arrow-down-alt2');
+						  arrow.classList.add('dashicons-arrow-up-alt2');
+					  } else {
+						  block.classList.add('is-closed');
+						  block.classList.remove('is-open');
+						  arrow.classList.add('dashicons-arrow-down-alt2');
+						  arrow.classList.remove('dashicons-arrow-up-alt2');
+					  }
+				  });
+			  });
+		  });
+		  document.querySelectorAll('.time-lane-rule-row select[name*="[start]"]').forEach(validateTimeRange);
+		  document.querySelectorAll('.activity-letter-select').forEach(select => {
+			  updateSubitemSelector(select, true);
+		  });
+	  });
+	  </script>
+	  <?php
+  }
 	   
+ /**
+ * Comprova si els blocs d'un esdeveniment candidat entren en conflicte amb altres esdeveniments recurrents existents.
+ *
+ * @param array $candidate_blocks   Els blocs de l'esdeveniment que es vol desar.
+ * @param int   $exclude_post_id    L'ID de l'esdeveniment que s'està desant (per excloure'l de la comparació).
+ * @return array|false              Retorna un array amb detalls del conflicte si n'hi ha, o false si no n'hi ha.
+ */
+function sportic_find_recurrent_conflict( $candidate_blocks, $exclude_post_id ) {
+	   if ( ! is_array( $candidate_blocks ) || empty( $candidate_blocks ) ) {
+		   return false;
+	   }
+   
+	   $occupied_cells_map = [];
+	   $query_args = [
+		   'post_type'      => 'sportic_recurrent',
+		   'posts_per_page' => -1,
+		   'post_status'    => 'publish',
+		   'post__not_in'   => [ (int) $exclude_post_id ],
+	   ];
+	   $other_events_query = new WP_Query( $query_args );
+   
+	   if ( $other_events_query->have_posts() ) {
+		   while ( $other_events_query->have_posts() ) {
+			   $other_events_query->the_post();
+			   $other_post_id = get_the_ID();
+			   $other_blocks  = get_post_meta( $other_post_id, '_sportic_recurrent_blocks', true );
+   
+			   if ( ! is_array( $other_blocks ) ) continue;
+   
+			   foreach ( $other_blocks as $block ) {
+				   if ( empty( $block['piscina_slug'] ) || empty( $block['time_lane_rules'] ) || empty( $block['date_ranges'] ) ) continue;
+				   
+				   $pool_config = sportic_unfile_get_pool_labels_sorted();
+				   $num_lanes_in_pool = $pool_config[$block['piscina_slug']]['lanes'] ?? 0;
+   
+				   foreach ( $block['date_ranges'] as $range ) {
+					   try {
+						   $start_date = new DateTime( $range['start'] );
+						   $end_date   = new DateTime( $range['end'] );
+						   $end_date->modify( '+1 day' );
+						   $period = new DatePeriod( $start_date, new DateInterval('P1D'), $end_date );
+   
+						   foreach ( $period as $date ) {
+							   $day_of_week = (int) $date->format('N');
+							   if ( empty( $range['days'] ) || in_array( $day_of_week, $range['days'] ) ) {
+								   $date_str = $date->format('Y-m-d');
+								   foreach ( $block['time_lane_rules'] as $rule ) {
+									   try {
+										   $start_time = new DateTime( $rule['start'] );
+										   $end_time   = new DateTime( $rule['end'] );
+										   $current_hour = clone $start_time;
+   
+										   while ( $current_hour < $end_time ) {
+											   $hour_key = $current_hour->format('H:i');
+											   $lanes_in_rule = !empty($rule['lanes']) ? array_map('intval', explode(',', $rule['lanes'])) : range(1, $num_lanes_in_pool);
+											   foreach ( $lanes_in_rule as $lane_1_based ) {
+												   $lane_0_based = $lane_1_based - 1;
+												   $occupied_cells_map[ $date_str ][ $block['piscina_slug'] ][ $hour_key ][ $lane_0_based ] = $other_post_id;
+											   }
+											   $current_hour->modify('+15 minutes'); // <-- CANVI A 15 MINUTS
+										   }
+									   } catch ( Exception $e ) { continue; }
+								   }
+							   }
+						   }
+					   } catch ( Exception $e ) { continue; }
+				   }
+			   }
+		   }
+	   }
+	   wp_reset_postdata();
+   
+	   foreach ( $candidate_blocks as $block ) {
+		   if ( empty( $block['piscina_slug'] ) || empty( $block['time_lane_rules'] ) || empty( $block['date_ranges'] ) ) continue;
+   
+		   $pool_config = sportic_unfile_get_pool_labels_sorted();
+		   $num_lanes_in_pool = $pool_config[$block['piscina_slug']]['lanes'] ?? 0;
+		   
+		   foreach ( $block['date_ranges'] as $range ) {
+			   try {
+				   $start_date = new DateTime( $range['start'] );
+				   $end_date   = new DateTime( $range['end'] );
+				   $end_date->modify('+1 day');
+				   $period = new DatePeriod( $start_date, new DateInterval('P1D'), $end_date );
+   
+				   foreach ( $period as $date ) {
+					   $day_of_week = (int) $date->format('N');
+					   if ( empty( $range['days'] ) || in_array( $day_of_week, $range['days'] ) ) {
+						   $date_str = $date->format('Y-m-d');
+						   foreach ( $block['time_lane_rules'] as $rule ) {
+							   try {
+								   $start_time = new DateTime( $rule['start'] );
+								   $end_time   = new DateTime( $rule['end'] );
+								   $current_hour = clone $start_time;
+   
+								   while ( $current_hour < $end_time ) {
+									   $hour_key = $current_hour->format('H:i');
+									   $lanes_in_rule = !empty($rule['lanes']) ? array_map('intval', explode(',', $rule['lanes'])) : range(1, $num_lanes_in_pool);
+									   foreach ( $lanes_in_rule as $lane_1_based ) {
+										   $lane_0_based = $lane_1_based - 1;
+										   if ( isset( $occupied_cells_map[ $date_str ][ $block['piscina_slug'] ][ $hour_key ][ $lane_0_based ] ) ) {
+											   return [
+												   'post_id'   => $occupied_cells_map[ $date_str ][ $block['piscina_slug'] ][ $hour_key ][ $lane_0_based ],
+												   'pool_slug' => $block['piscina_slug'],
+												   'date'      => $date_str,
+												   'hour'      => $hour_key,
+												   'lane'      => $lane_1_based,
+											   ];
+										   }
+									   }
+									   $current_hour->modify('+15 minutes'); // <-- CANVI A 15 MINUTS
+								   }
+							   } catch ( Exception $e ) { continue; }
+						   }
+					   }
+				   }
+			   } catch ( Exception $e ) { continue; }
+		   }
+	   }
+   
+	   return false;
+   }
+  /**
+ * Mostra un avís d'error a la pantalla d'edició d'esdeveniments si hi ha un conflicte guardat en un transient.
+ */
+function sportic_display_recurrent_error_notice() {
+	 // Comprovem si estem a la pantalla d'edició d'un post
+	 if ( ! function_exists( 'get_current_screen' ) ) {
+		 return;
+	 }
+	 $screen = get_current_screen();
+	 if ( ! $screen || $screen->base !== 'post' || $screen->post_type !== 'sportic_recurrent' ) {
+		 return;
+	 }
+	 
+	 // Comprovem si tenim el nostre paràmetre a la URL
+	 if ( ! isset( $_GET['sportic_conflict'] ) || $_GET['sportic_conflict'] !== '1' ) {
+		 return;
+	 }
  
-  
-
-
-
-
-
-
-  
-  
+	 $post_id = get_the_ID();
+	 if ( ! $post_id ) {
+		 return;
+	 }
  
+	 $transient_key = 'sportic_recurrent_error_notice_' . $post_id;
+	 
+	 // Comprovem si existeix el missatge d'error temporal.
+	 if ( $error_message = get_transient( $transient_key ) ) {
+		 ?>
+		 <div class="notice notice-error is-dismissible">
+			 <p><?php echo wp_kses_post( $error_message ); // Usem wp_kses_post per permetre HTML bàsic com <strong> ?></p>
+		 </div>
+		 <?php
+		 // Esborrem el transient perquè no es torni a mostrar en refrescar la pàgina.
+		 delete_transient( $transient_key );
+	 }
+ }
+ 
+ // Enganxem la funció a l'acció 'admin_notices' per mostrar l'avís.
+add_action( 'admin_notices', 'sportic_display_recurrent_error_notice' );
+
+
+
+
+/* =========================================================================
+ * INICI FUNCIÓ CORREGIDA – SUBSTITUEIX L'ORIGINAL
+ * Aquesta versió desa la descripció completa de l'activitat
+ * per als esdeveniments recurrents.
+ * =========================================================================*/
+function sportic_recurrent_save_metabox_data( $post_id ) {
+	  if ( ! isset( $_POST['sportic_recurrent_nonce'] ) || ! wp_verify_nonce( $_POST['sportic_recurrent_nonce'], 'sportic_recurrent_save_metabox' ) ) return;
+	  if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
+	  if ( ! current_user_can( 'edit_post', $post_id ) ) return;
+	  if ( wp_is_post_revision( $post_id ) ) return;
+  
+	  global $wpdb;
+	  $taula_excepcions = $wpdb->prefix . 'sportic_recurrent_exceptions';
+	  $taula_programacio = $wpdb->prefix . 'sportic_programacio';
+	  $all_pools_config = sportic_unfile_get_pool_labels_sorted();
+  
+	  $old_blocks = get_post_meta( $post_id, '_sportic_recurrent_blocks', true );
+	  if (!is_array($old_blocks)) $old_blocks = [];
+  
+	  $sanitized_blocks = [];
+	  if ( isset( $_POST['recurrent_blocks'] ) && is_array( $_POST['recurrent_blocks'] ) ) {
+		  foreach ( $_POST['recurrent_blocks'] as $block_data ) {
+			  if ( empty($block_data['piscina_slug']) || empty($block_data['activity_description']) ) continue;
+			  $sanitized_block = [
+				  'piscina_slug' => sanitize_text_field( $block_data['piscina_slug'] ),
+				  'activity_description' => sanitize_text_field( $block_data['activity_description'] ),
+				  'activity_subitem' => isset($block_data['activity_subitem']) ? sanitize_text_field($block_data['activity_subitem']) : '',
+				  'time_lane_rules' => [], 'date_ranges' => [],
+			  ];
+			  if (isset($block_data['time_lane_rules']) && is_array($block_data['time_lane_rules'])) {
+				  foreach ($block_data['time_lane_rules'] as $rule) {
+					  if (!empty($rule['start']) && !empty($rule['end'])) {
+						  $sanitized_block['time_lane_rules'][] = [ 'start' => $rule['start'], 'end' => $rule['end'], 'lanes' => $rule['lanes'] ];
+					  }
+				  }
+			  }
+			  if (isset($block_data['date_ranges']) && is_array($block_data['date_ranges'])) {
+				  foreach ($block_data['date_ranges'] as $range) {
+					  if ( ! empty( $range['start'] ) && ! empty( $range['end'] ) ) {
+						  $sanitized_block['date_ranges'][] = [ 'start' => $range['start'], 'end' => $range['end'], 'days' => $range['days'] ?? [] ];
+					  }
+				  }
+			  }
+			  if (!empty($sanitized_block['time_lane_rules']) && !empty($sanitized_block['date_ranges'])) {
+				   $sanitized_blocks[] = $sanitized_block;
+			  }
+		  }
+	  }
+  
+	  $generate_cells_map = function($blocks) use ($all_pools_config) {
+		  $map = [];
+		  if (!is_array($blocks)) return $map;
+		  foreach ($blocks as $block) {
+			  $slug = $block['piscina_slug'];
+			  if (!isset($all_pools_config[$slug])) continue;
+			  $num_lanes = $all_pools_config[$slug]['lanes'] ?? 0;
+			  if (!isset($block['date_ranges']) || !is_array($block['date_ranges'])) continue;
+			  foreach ($block['date_ranges'] as $range) {
+				  try {
+					  $start = new DateTime($range['start']); $end = (new DateTime($range['end']))->modify('+1 day');
+					  $period = new DatePeriod($start, new DateInterval('P1D'), $end);
+					  if (!isset($block['time_lane_rules']) || !is_array($block['time_lane_rules'])) continue;
+					  foreach ($period as $date) {
+						  $day_of_week = (int) $date->format('N');
+						  if (empty($range['days']) || in_array($day_of_week, $range['days'])) {
+							  $date_str = $date->format('Y-m-d');
+							  foreach ($block['time_lane_rules'] as $rule) {
+								  $start_h = new DateTime($rule['start']); $end_h = new DateTime($rule['end']);
+								  $lanes = !empty($rule['lanes']) ? array_map('intval', explode(',', $rule['lanes'])) : range(1, $num_lanes);
+								  for ($h = clone $start_h; $h < $end_h; $h->modify('+15 minutes')) {
+									  foreach ($lanes as $lane_1) {
+										  $map[$date_str][$slug][$h->format('H:i')][$lane_1 - 1] = true;
+									  }
+								  }
+							  }
+						  }
+					  }
+				  } catch (Exception $e) { continue; }
+			  }
+		  }
+		  return $map;
+	  };
+  
+	  $old_cells_map = $generate_cells_map($old_blocks);
+	  $new_cells_map = $generate_cells_map($sanitized_blocks);
+  
+	  if ( isset($_POST['sportic_force_overwrite_exceptions']) && $_POST['sportic_force_overwrite_exceptions'] === '1' ) {
+		  // --- COMPORTAMENT "HARD RESET" (Sobreescriure marcat) ---
+		  // L'àrea a "esterilitzar" és la unió de l'antiga i la nova, per cobrir tots els casos.
+		  $cells_to_fully_reset = array_replace_recursive($old_cells_map, $new_cells_map);
+  
+		  if (!empty($cells_to_fully_reset)) {
+			  $updates_by_schedule_entry = [];
+			  foreach ($cells_to_fully_reset as $date => $pools) {
+				  foreach ($pools as $slug => $hours) {
+					  foreach ($hours as $hour => $lanes) {
+						  foreach (array_keys($lanes) as $lane_idx_0) {
+							  // Pas 1: Esborrem qualsevol excepció que hi hagi a l'àrea afectada. AQUEST ÉS EL PAS CLAU.
+							  $wpdb->delete($taula_excepcions, ['dia_data' => $date, 'piscina_slug' => $slug, 'hora' => $hour, 'carril_index' => $lane_idx_0]);
+							  // Pas 2: Agrupem les cel·les per actualitzar la programació base a 'l'.
+							  $updates_by_schedule_entry[$slug][$date][$hour][] = $lane_idx_0;
+						  }
+					  }
+				  }
+			  }
+  
+			  foreach ($updates_by_schedule_entry as $slug => $dates) {
+				  foreach ($dates as $date => $hours_to_update) {
+					  $current_schedule_entry = $wpdb->get_var($wpdb->prepare("SELECT hores_serial FROM $taula_programacio WHERE piscina_slug = %s AND dia_data = %s", $slug, $date));
+					  
+					  $schedule_array = [];
+					  if ($current_schedule_entry) {
+						  $schedule_array = @maybe_unserialize($current_schedule_entry);
+					  }
+					  if (!is_array($schedule_array) || empty($schedule_array)) {
+						  $schedule_array = sportic_unfile_crear_programacio_default($slug);
+					  }
+  
+					  $modified = false;
+					  foreach ($hours_to_update as $hour => $lanes_to_clear) {
+						  if (!isset($schedule_array[$hour]) || !is_array($schedule_array[$hour])) {
+							  $schedule_array[$hour] = array_fill(0, $all_pools_config[$slug]['lanes'] ?? 0, 'l');
+						  }
+						  foreach ($lanes_to_clear as $lane_idx_0) {
+							  // Forcem la neteja de manera incondicional
+							  if (!isset($schedule_array[$hour][$lane_idx_0]) || $schedule_array[$hour][$lane_idx_0] !== 'l') {
+								 $schedule_array[$hour][$lane_idx_0] = 'l';
+								 $modified = true;
+							  }
+						  }
+					  }
+					  
+					  if ($modified) {
+						  $wpdb->replace(
+							  $taula_programacio,
+							  [
+								  'piscina_slug' => $slug,
+								  'dia_data'     => $date,
+								  'hores_serial' => maybe_serialize($schedule_array)
+							  ],
+							  ['%s', '%s', '%s']
+						  );
+					  }
+				  }
+			  }
+		  }
+	  } else {
+		  // --- COMPORTAMENT "SOFT UPDATE" (Sobreescriure NO marcat) ---
+		  $orphaned_cells = [];
+		  foreach ($old_cells_map as $date => $pools) {
+			  foreach ($pools as $slug => $hours) {
+				  foreach ($hours as $hour => $lanes) {
+					  foreach (array_keys($lanes) as $lane_idx_0) {
+						  if (!isset($new_cells_map[$date][$slug][$hour][$lane_idx_0])) {
+							  $orphaned_cells[$date][$slug][$hour][$lane_idx_0] = true;
+						  }
+					  }
+				  }
+			  }
+		  }
+  
+		  if (!empty($orphaned_cells)) {
+			  $affected_dates = array_keys($orphaned_cells);
+			  if (!empty($affected_dates)) {
+				 $placeholders = implode(', ', array_fill(0, count($affected_dates), '%s'));
+				 $exceptions_raw = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $taula_excepcions WHERE dia_data IN ($placeholders)", $affected_dates), ARRAY_A);
+				 
+				 $exceptions_map = [];
+				 foreach ($exceptions_raw as $ex) {
+					 $exceptions_map[$ex['dia_data']][$ex['piscina_slug']][$ex['hora']][(int)$ex['carril_index']] = true;
+				 }
+ 
+				 $updates_by_schedule_entry = [];
+				 foreach ($orphaned_cells as $date => $pools) {
+					 foreach ($pools as $slug => $hours) {
+						 foreach ($hours as $hour => $lanes) {
+							 foreach (array_keys($lanes) as $lane_idx_0) {
+								 if (isset($exceptions_map[$date][$slug][$hour][$lane_idx_0])) {
+									 continue;
+								 }
+								 $updates_by_schedule_entry[$slug][$date][$hour][] = $lane_idx_0;
+							 }
+						 }
+					 }
+				 }
+ 
+				 foreach ($updates_by_schedule_entry as $slug => $dates) {
+					 foreach ($dates as $date => $hours_to_update) {
+						 $current_schedule_entry = $wpdb->get_var($wpdb->prepare("SELECT hores_serial FROM $taula_programacio WHERE piscina_slug = %s AND dia_data = %s", $slug, $date));
+						 if ($current_schedule_entry) {
+							 $schedule_array = @maybe_unserialize($current_schedule_entry);
+							 if (is_array($schedule_array)) {
+								 $modified = false;
+								 foreach ($hours_to_update as $hour => $lanes_to_clear) {
+									 if (isset($schedule_array[$hour]) && is_array($schedule_array[$hour])) {
+										 foreach ($lanes_to_clear as $lane_idx_0) {
+											 if (isset($schedule_array[$hour][$lane_idx_0]) && $schedule_array[$hour][$lane_idx_0] !== 'l') {
+												 $schedule_array[$hour][$lane_idx_0] = 'l';
+												 $modified = true;
+											 }
+										 }
+									 }
+								 }
+								 if ($modified) {
+									 $wpdb->update($taula_programacio, ['hores_serial' => maybe_serialize($schedule_array)], ['piscina_slug' => $slug, 'dia_data' => $date]);
+								 }
+							 }
+						 }
+					 }
+				 }
+			  }
+		  }
+	  }
+  
+	  delete_transient( 'sportic_recurrent_error_notice_' . $post_id );
+	  delete_transient( 'sportic_recurrent_unsaved_data_' . $post_id );
+  
+	  update_post_meta( $post_id, '_sportic_recurrent_blocks', $sanitized_blocks );
+  
+	  if (function_exists('sportic_clear_all_relevant_caches')) {
+		  sportic_clear_all_relevant_caches();
+	  }
+  }
+			 
+   add_action( 'save_post_sportic_recurrent', 'sportic_recurrent_save_metabox_data' );
   
   
+  /* =========================================================================
+   * INICI FUNCIÓ – SUBSTITUEIX 1:1 LA VERSIÓ ANTERIOR AMB L'ERROR
+   * Aquesta versió corregeix l'error de sintaxi a la línia de sprintf.
+   * =========================================================================*/
+  add_action( 'pre_post_update', 'sportic_validate_recurrent_conflict_before_save', 10, 2 );
+  
+  /**
+   * Valida conflictes d'esdeveniments recurrents ABANS de desar el post.
+   * Si troba un conflicte, atura el procés de desat i mostra un error.
+   *
+   * @param int   $post_id  L'ID del post que s'està desant.
+   * @param array $data     Les dades del post que s'estan desant.
+   */
+function sportic_validate_recurrent_conflict_before_save( $post_id, $data ) {
+	   if ( $data['post_type'] !== 'sportic_recurrent' || empty( $_POST['recurrent_blocks'] ) || !is_array( $_POST['recurrent_blocks'] ) ) {
+		   return;
+	   }
+	   if ( ! isset( $_POST['sportic_recurrent_nonce'] ) || ! wp_verify_nonce( $_POST['sportic_recurrent_nonce'], 'sportic_recurrent_save_metabox' ) ) {
+		   return;
+	   }
+   
+	   $sanitized_blocks = [];
+	   foreach ( $_POST['recurrent_blocks'] as $block_data ) {
+		   if ( empty($block_data['piscina_slug']) || empty($block_data['activity_letter']) ) continue;
+		   $sanitized_block = [
+			   'piscina_slug'    => sanitize_text_field( $block_data['piscina_slug'] ), 'activity_letter' => sanitize_text_field( $block_data['activity_letter'] ), 'activity_subitem' => isset($block_data['activity_subitem']) ? sanitize_text_field($block_data['activity_subitem']) : '', 'time_lane_rules' => [], 'date_ranges' => [],
+		   ];
+		   if (isset($block_data['time_lane_rules']) && is_array($block_data['time_lane_rules'])) {
+			   foreach ($block_data['time_lane_rules'] as $rule) { if (!empty($rule['start']) && !empty($rule['end'])) { $sanitized_block['time_lane_rules'][] = [ 'start' => $rule['start'], 'end' => $rule['end'], 'lanes' => $rule['lanes'] ]; } }
+		   }
+		   if (isset($block_data['date_ranges']) && is_array($block_data['date_ranges'])) {
+			   foreach ($block_data['date_ranges'] as $range) { if ( ! empty( $range['start'] ) && ! empty( $range['end'] ) ) { $sanitized_block['date_ranges'][] = [ 'start' => $range['start'], 'end' => $range['end'], 'days' => $range['days'] ?? [] ]; } }
+		   }
+		   if (!empty($sanitized_block['time_lane_rules']) && !empty($sanitized_block['date_ranges'])) { $sanitized_blocks[] = $sanitized_block; }
+	   }
+   
+	   $conflict = sportic_find_recurrent_conflict( $sanitized_blocks, $post_id );
+   
+	   if ( $conflict !== false ) {
+		   $conflicting_post = get_post( $conflict['post_id'] );
+		   $conflicting_title = $conflicting_post ? $conflicting_post->post_title : 'ID ' . $conflict['post_id'];
+		   $all_pools = sportic_unfile_get_pool_labels_sorted();
+		   $pool_label = $all_pools[$conflict['pool_slug']]['label'] ?? $conflict['pool_slug'];
+   
+		   $error_message = sprintf(
+			   "Error: No s'ha desat. L'esdeveniment entra en conflicte amb '%s'. Solapament detectat al pavelló '%s' el dia %s a les %s.",
+			   esc_html( $conflicting_title ), esc_html( $pool_label ), esc_html( date_i18n( 'd/m/Y', strtotime( $conflict['date'] ) ) ), esc_html( $conflict['hour'] )
+		   );
+   
+		   // Guardem l'error i les dades per a la propera càrrega
+		   set_transient( 'sportic_recurrent_error_notice_' . $post_id, $error_message, 60 );
+		   set_transient( 'sportic_recurrent_unsaved_data_' . $post_id, $_POST, 60 );
+		   
+		   // Obtenim la URL d'edició del post actual
+		   $redirect_url = get_edit_post_link( $post_id, 'raw' );
+		   // Afegim el nostre paràmetre d'error
+		   $redirect_url = add_query_arg( 'sportic_conflict', '1', $redirect_url );
+		   
+		   // Fem la redirecció manualment
+		   wp_safe_redirect( $redirect_url );
+		   // Aturem l'execució immediatament per evitar que WordPress continuï
+		   exit;
+	   }
+   }
    
    
 /* =========================================================================
@@ -1766,470 +3015,480 @@ function sportic_unfile_admin_menu() {
 	* la prepara correctament per aplicar-la a la graella.
 	* =========================================================================*/
 function sportic_get_all_recurrent_events_map() {
-		// Retornem un array buit per desactivar completament els esdeveniments recurrents
+		// Desactivat. Retornem un array buit per ignorar sempre els esdeveniments recurrents.
 		return [];
-	}
-/**
+	}		  
+	  /**
 	* ----------------------------------------------------------------------------
 	*  AFEGIM LA NOVA SECCIÓ DE CONFIGURACIÓ
 	* ----------------------------------------------------------------------------
 	*/
 	
 function sportic_unfile_settings_page() {
-		if ( ! current_user_can('manage_options') ) {
-			return;
-		}
-	
-		$action_processed_this_request = false;
-	
-		if ( isset($_POST['sportic_clear_cache_manual_submit']) && isset($_POST['sportic_clear_cache_nonce']) ) {
-			check_admin_referer( 'sportic_clear_cache_action', 'sportic_clear_cache_nonce' );
-			
-			global $wpdb;
-	
-			$prefix_week = '_transient_sportic_week_data_';
-			$prefix_csv = '_transient_sportic_csv_data_';
-			$timeout_prefix_week = '_transient_timeout_sportic_week_data_';
-			$timeout_prefix_csv = '_transient_timeout_sportic_csv_data_';
-			
-			$wpdb->query( $wpdb->prepare(
-				"DELETE FROM $wpdb->options WHERE option_name LIKE %s OR option_name LIKE %s",
-				$wpdb->esc_like($prefix_week) . '%',
-				$wpdb->esc_like($timeout_prefix_week) . '%'
-			) );
-	
-			$wpdb->query( $wpdb->prepare(
-				"DELETE FROM $wpdb->options WHERE option_name LIKE %s OR option_name LIKE %s",
-				$wpdb->esc_like($prefix_csv) . '%',
-				$wpdb->esc_like($timeout_prefix_csv) . '%'
-			) );
-	
-			wp_cache_delete('sportic_all_data_with_locks', 'sportic_data');
-			
-			echo '<div class="updated notice"><p>La memòria cau del plugin s\'ha netejat de manera forçada. Els esdeveniments fantasma haurien d\'haver desaparegut.</p></div>';
-			$action_processed_this_request = true;
-		}
-	
-		if ( !$action_processed_this_request && isset($_POST['clean_schedule']) && isset($_POST['sportic_clean_schedule_nonce_field']) ) {
-			check_admin_referer( 'sportic_clean_schedule_nonce_action', 'sportic_clean_schedule_nonce_field' );
+	if ( ! current_user_can('manage_options') ) {
+		return;
+	}
+
+	$action_processed_this_request = false;
+
+	if ( isset($_POST['sportic_clear_cache_manual_submit']) && isset($_POST['sportic_clear_cache_nonce']) ) {
+		check_admin_referer( 'sportic_clear_cache_action', 'sportic_clear_cache_nonce' );
+		
+		global $wpdb;
+
+		$prefix_week = '_transient_sportic_week_data_';
+		$prefix_csv = '_transient_sportic_csv_data_';
+		$timeout_prefix_week = '_transient_timeout_sportic_week_data_';
+		$timeout_prefix_csv = '_transient_timeout_sportic_csv_data_';
+		
+		$wpdb->query( $wpdb->prepare(
+			"DELETE FROM $wpdb->options WHERE option_name LIKE %s OR option_name LIKE %s",
+			$wpdb->esc_like($prefix_week) . '%',
+			$wpdb->esc_like($timeout_prefix_week) . '%'
+		) );
+
+		$wpdb->query( $wpdb->prepare(
+			"DELETE FROM $wpdb->options WHERE option_name LIKE %s OR option_name LIKE %s",
+			$wpdb->esc_like($prefix_csv) . '%',
+			$wpdb->esc_like($timeout_prefix_csv) . '%'
+		) );
+
+		wp_cache_delete('sportic_all_data_with_locks', 'sportic_data');
+		
+		echo '<div class="updated notice"><p>La memòria cau del plugin s\'ha netejat de manera forçada. Els esdeveniments fantasma haurien d\'haver desaparegut.</p></div>';
+		$action_processed_this_request = true;
+	}
+
+	if ( !$action_processed_this_request && isset($_POST['clean_schedule']) && isset($_POST['sportic_clean_schedule_nonce_field']) ) {
+		check_admin_referer( 'sportic_clean_schedule_nonce_action', 'sportic_clean_schedule_nonce_field' );
+		global $wpdb;
+		$nomTaulaProgramacio = $wpdb->prefix . 'sportic_programacio';
+		$nomTaulaBloqueig = $wpdb->prefix . (defined('SPORTIC_LOCK_TABLE') ? SPORTIC_LOCK_TABLE : 'sportic_bloqueig');
+		$wpdb->query("DELETE FROM $nomTaulaProgramacio");
+		$wpdb->query("DELETE FROM $nomTaulaBloqueig");
+		if (function_exists('wp_cache_delete')) { wp_cache_delete('sportic_all_data_with_locks', 'sportic_data'); }
+		if (function_exists('sportic_clear_all_week_transients')) { sportic_clear_all_week_transients(); }
+		echo '<div class="updated notice"><p>La programació s\'ha netejat completament.</p></div>';
+		$action_processed_this_request = true;
+	}
+
+	if ( !$action_processed_this_request && isset($_POST['delete_year']) && isset($_POST['year_to_delete']) && isset($_POST['sportic_delete_year_nonce_field']) ) {
+		check_admin_referer( 'sportic_delete_year_nonce_action', 'sportic_delete_year_nonce_field' );
+		$year_to_delete_action = sanitize_text_field( $_POST['year_to_delete'] );
+		if ( ! preg_match('/^\d{4}$/', $year_to_delete_action) ) {
+			echo '<div class="error notice"><p>El format de l\'any no és vàlid.</p></div>';
+		} else {
 			global $wpdb;
 			$nomTaulaProgramacio = $wpdb->prefix . 'sportic_programacio';
 			$nomTaulaBloqueig = $wpdb->prefix . (defined('SPORTIC_LOCK_TABLE') ? SPORTIC_LOCK_TABLE : 'sportic_bloqueig');
-			$wpdb->query("DELETE FROM $nomTaulaProgramacio");
-			$wpdb->query("DELETE FROM $nomTaulaBloqueig");
+			$start_of_year = $year_to_delete_action . '-01-01';
+			$end_of_year = $year_to_delete_action . '-12-31';
+			$wpdb->query( $wpdb->prepare( "DELETE FROM $nomTaulaProgramacio WHERE dia_data BETWEEN %s AND %s", $start_of_year, $end_of_year ) );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM $nomTaulaBloqueig WHERE dia_data BETWEEN %s AND %s", $start_of_year, $end_of_year ) );
 			if (function_exists('wp_cache_delete')) { wp_cache_delete('sportic_all_data_with_locks', 'sportic_data'); }
 			if (function_exists('sportic_clear_all_week_transients')) { sportic_clear_all_week_transients(); }
-			echo '<div class="updated notice"><p>La programació s\'ha netejat completament.</p></div>';
-			$action_processed_this_request = true;
+			echo '<div class="updated notice"><p>Dades de l\'any ' . esc_html($year_to_delete_action) . ' eliminades correctament.</p></div>';
 		}
+		$action_processed_this_request = true;
+	}
+
+	if ( !$action_processed_this_request && isset($_POST['sportic_main_settings_submit_button']) && isset($_POST['sportic_nonce']) ) {
+		if (wp_verify_nonce($_POST['sportic_nonce'], 'sportic_save_settings')) {
+			$feedback_messages = [];
+			$settings_changed = false;
+			
+			if ( isset($_POST['sportic_colors']) && is_array($_POST['sportic_colors']) ) {
+				$colors_input = $_POST['sportic_colors'];
+				$clean_colors = [
+					'main_color' => sanitize_hex_color($colors_input['main_color'] ?? '#2563eb'),
+					'accent_color' => sanitize_hex_color($colors_input['accent_color'] ?? '#2563eb'),
+				];
+				$old_colors = get_option('sportic_shortcode_colors', []);
+				if (serialize($old_colors) !== serialize($clean_colors)) {
+					update_option('sportic_shortcode_colors', $clean_colors);
+					$feedback_messages[] = 'Colors corporatius del shortcode desats correctament!';
+					$settings_changed = true;
+				}
+			}
+
+			// ========================================================================
+			// INICI DEL CANVI: LÒGICA MILLORADA PER DESAR LES OPCIONS DEL SHORTCODE
+			// ========================================================================
+			$old_shortcode_options = get_option('sporttic_shortcode_options', []);
+			
+			// Es defineix el nou estat de les opcions basant-se en el que arriba del formulari.
+			// Si una casella no està marcada, `isset` serà fals i s'assignarà '0'.
+			$new_shortcode_options = [
+				'hide_empty_days' => isset($_POST['sporttic_shortcode_options']['hide_empty_days']) ? '1' : '0',
+				'compact_view'    => isset($_POST['sporttic_shortcode_options']['compact_view']) ? '1' : '0',
+			];
+		
+			// Només s'actualitza la base de dades si hi ha hagut un canvi real.
+			if (serialize($old_shortcode_options) !== serialize($new_shortcode_options)) {
+				update_option('sporttic_shortcode_options', $new_shortcode_options);
+				$feedback_messages[] = 'Opcions del shortcode desades correctament!';
+				$settings_changed = true;
+			}
+			// ========================================================================
+			// FI DEL CANVI
+			// ========================================================================
+
+			if ( isset($_POST['sportic_opening_hours_start']) && isset($_POST['sportic_opening_hours_end']) ) { $start_h = sanitize_text_field($_POST['sportic_opening_hours_start']); $end_h = sanitize_text_field($_POST['sportic_opening_hours_end']); $old_hours = get_option('sportic_unfile_opening_hours', array('start' => '16:00', 'end' => '23:00')); if ($old_hours['start'] !== $start_h || $old_hours['end'] !== $end_h) { update_option('sportic_unfile_opening_hours', array('start' => $start_h, 'end' => $end_h)); $feedback_messages[] = 'Rangs horaris desats correctament!'; $settings_changed = true; } }
+			
+			if ( isset($_POST['sportic_custom_activities']) && is_array($_POST['sportic_custom_activities']) ) {
+				$activities_input = $_POST['sportic_custom_activities'];
+				$clean_activities_to_save = [];
+				$descriptions_used = [];
+				$shortcodes_used = [];
+				$error_found = false;
+				$error_message = '';
+
+				foreach ($activities_input as $activity_row) {
+					if ( !isset($activity_row['description']) || !isset($activity_row['color']) ) continue;
+					$description = trim(stripslashes(sanitize_text_field($activity_row['description'])));
+					$color = sanitize_hex_color($activity_row['color']);
+					$raw_shortcode = isset($activity_row['shortcode']) ? sanitize_text_field($activity_row['shortcode']) : '';
+
+					if ($description === '') continue;
+
+					if (in_array(strtolower($description), array_map('strtolower', $descriptions_used))) {
+						$error_found = true;
+						$error_message = "La descripció '" . esc_html($description) . "' està duplicada. No es poden repetir. No s'ha desat res.";
+						break;
+					}
+
+					$shortcode = sanitize_title($raw_shortcode !== '' ? $raw_shortcode : $description);
+					if ($shortcode === '') {
+						$shortcode = sanitize_title($description);
+					}
+					$base_shortcode = $shortcode;
+					$counter = 2;
+					while (in_array($shortcode, $shortcodes_used, true)) {
+						$shortcode = $base_shortcode . '-' . $counter;
+						$counter++;
+					}
+
+					if ($color) {
+						$descriptions_used[] = $description;
+						$shortcodes_used[] = $shortcode;
+						$clean_item = [
+							'description' => $description,
+							'color'       => $color,
+							'shortcode'   => $shortcode,
+						];
+						if (isset($activity_row['letter']) && $activity_row['letter'] !== '') {
+							$clean_item['letter'] = sanitize_text_field($activity_row['letter']);
+						} else {
+							$clean_item['letter'] = $description;
+						}
+						if (isset($activity_row['subitems'])) {
+							$clean_item['subitems'] = $activity_row['subitems'];
+						}
+						$clean_activities_to_save[] = $clean_item;
+					}
+				}
+
+				if ($error_found) {
+					echo '<div class="error notice"><p>' . esc_html($error_message) . '</p></div>';
+				} else {
+					$old_custom_activities = get_option('sportic_unfile_custom_letters', array());
+					if (serialize($old_custom_activities) !== serialize($clean_activities_to_save)) {
+						update_option('sportic_unfile_custom_letters', $clean_activities_to_save);
+						$feedback_messages[] = 'Activitats personalitzades desades correctament!';
+						$settings_changed = true;
+					}
+				}
+			}
+
+			if ( isset($_POST['sportic_pool_labels']) && is_array($_POST['sportic_pool_labels']) ) { $raw_posted_pool_labels_form = $_POST['sportic_pool_labels']; $pool_settings_changed_flag = false; if (function_exists('sportpavellons_get_pools') && defined('sportpavellons_CONFIG_OPTION_NAME')) { $current_sportpavellons_config_save = get_option(sportpavellons_CONFIG_OPTION_NAME, []); if (!is_array($current_sportpavellons_config_save)) $current_sportpavellons_config_save = []; $updated_sportpavellons_config_save = $current_sportpavellons_config_save; foreach ($raw_posted_pool_labels_form as $slug_from_form_save => $data_from_form_save) { $clean_slug_form = sanitize_key($slug_from_form_save); if (isset($updated_sportpavellons_config_save[$clean_slug_form]) && is_array($data_from_form_save)) { if (isset($data_from_form_save['label']) && $updated_sportpavellons_config_save[$clean_slug_form]['name'] !== sanitize_text_field($data_from_form_save['label'])) { $updated_sportpavellons_config_save[$clean_slug_form]['name'] = sanitize_text_field($data_from_form_save['label']); $pool_settings_changed_flag = true; } if (isset($data_from_form_save['order']) && $updated_sportpavellons_config_save[$clean_slug_form]['order'] !== intval($data_from_form_save['order'])) { $updated_sportpavellons_config_save[$clean_slug_form]['order'] = intval($data_from_form_save['order']); $pool_settings_changed_flag = true; } } } if ($pool_settings_changed_flag) { update_option(sportpavellons_CONFIG_OPTION_NAME, $updated_sportpavellons_config_save); $feedback_messages[] = 'Noms i ordre de camps desats correctament!'; $settings_changed = true; } } else { $cleanPoolLabels_local_save = array(); $allowedSlugs_local_save = array_keys(sportic_unfile_get_pool_labels_sorted()); foreach ($allowedSlugs_local_save as $slug_local_form) { if ( isset($raw_posted_pool_labels_form[$slug_local_form]) && is_array($raw_posted_pool_labels_form[$slug_local_form]) ) { $lbl_local_form = sanitize_text_field( $raw_posted_pool_labels_form[$slug_local_form]['label'] ); $ord_local_form = intval($raw_posted_pool_labels_form[$slug_local_form]['order']); $cleanPoolLabels_local_save[$slug_local_form] = array('label' => $lbl_local_form, 'order' => $ord_local_form); } } if (serialize(get_option('sportic_unfile_pool_labels', array())) !== serialize($cleanPoolLabels_local_save)) { update_option('sportic_unfile_pool_labels', $cleanPoolLabels_local_save); $feedback_messages[] = 'Noms i ordre de camps desats correctament!'; $settings_changed = true; } } }
+			if ($settings_changed) { if (function_exists('wp_cache_delete')) { wp_cache_delete('sportic_all_data_with_locks', 'sportic_data'); } if (function_exists('sportic_clear_all_week_transients')) { sportic_clear_all_week_transients(); } }
+			if (!empty($feedback_messages)) { echo '<div class="updated notice"><p>' . implode('<br>', $feedback_messages) . '</p></div>'; } 
+			elseif (!$settings_changed && !$action_processed_this_request && isset($_POST['sportic_main_settings_submit_button'])) { echo '<div class="info notice"><p>No s\'han detectat canvis a la configuració.</p></div>'; }
+		} else { if (isset($_POST['sportic_nonce'])) echo '<div class="error notice"><p>Error de seguretat (nonce invàlid).</p></div>'; }
+	}
+
+	$hours_view = get_option('sportic_unfile_opening_hours', array('start' => '16:00', 'end' => '23:00')); $currentStart_view = $hours_view['start']; $currentEnd_view = $hours_view['end']; $timeSlots_view = array(); 
+	try { 
+		$startTime_dt_view = new DateTime('00:00'); 
+		$endTime_dt_view = new DateTime('24:00'); 
+		$interval_dt_view = new DateInterval('PT15M');
+		for ($t_ts_view = clone $startTime_dt_view; $t_ts_view < $endTime_dt_view; $t_ts_view->add($interval_dt_view)) { 
+			$timeSlots_view[] = $t_ts_view->format('H:i'); 
+		} 
+	} catch(Exception $e) {
+		$timeSlots_view = [];
+	}
+	$customActivities_view = get_option('sportic_unfile_custom_letters', array());
+	$poolLabelsConfig_view = sportic_unfile_get_pool_labels_sorted();
 	
-		if ( !$action_processed_this_request && isset($_POST['delete_year']) && isset($_POST['year_to_delete']) && isset($_POST['sportic_delete_year_nonce_field']) ) {
-			check_admin_referer( 'sportic_delete_year_nonce_action', 'sportic_delete_year_nonce_field' );
-			$year_to_delete_action = sanitize_text_field( $_POST['year_to_delete'] );
-			if ( ! preg_match('/^\d{4}$/', $year_to_delete_action) ) {
-				echo '<div class="error notice"><p>El format de l\'any no és vàlid.</p></div>';
+	$corporate_colors = get_option('sportic_shortcode_colors', [
+		'main_color' => '#2563eb',
+		'accent_color' => '#2563eb',
+	]);
+
+	// ========================================================================
+	// INICI DEL CANVI: LÒGICA MILLORADA PER LLEGIR LES OPCIONS DEL SHORTCODE
+	// ========================================================================
+	// Es defineixen els valors per defecte per a totes les opcions.
+	$shortcode_options_defaults = [
+		'hide_empty_days' => '0',
+		'compact_view'    => '0',
+	];
+	// Es recuperen les opcions guardades i es combinen amb els valors per defecte.
+	// Això assegura que totes les variables tindran un valor, fins i tot si no estan a la BD.
+	$shortcode_options = get_option('sporttic_shortcode_options', []);
+	$shortcode_options = wp_parse_args($shortcode_options, $shortcode_options_defaults);
+
+	// Es preparen les variables booleanes per a la funció `checked()` de WordPress.
+	$hide_empty_days_checked = ($shortcode_options['hide_empty_days'] === '1');
+	$compact_view_checked    = ($shortcode_options['compact_view'] === '1');
+	// ========================================================================
+	// FI DEL CANVI
+	// ========================================================================
+
+	?>
+	<div class="wrap sportic-settings">
+		<h1 class="sportic-title">🛠 Configuració d'Horaris d'Entrenaments</h1>
+		
+		<form method="post" class="sportic-form">
+			<?php wp_nonce_field('sportic_save_settings', 'sportic_nonce'); ?>
+			<div class="card"><h2 class="title">⏰ Rangs Horaris</h2><div class="time-range-container"><div class="time-picker"><label for="sportic_opening_hours_start">Hora d'inici</label><div class="custom-select"><select id="sportic_opening_hours_start" name="sportic_opening_hours_start"><?php foreach ($timeSlots_view as $slot_item_view) : ?><option value="<?php echo esc_attr($slot_item_view); ?>" <?php selected($slot_item_view, $currentStart_view); ?>><?php echo esc_html($slot_item_view); ?></option><?php endforeach; ?></select></div></div><div class="time-picker"><label for="sportic_opening_hours_end">Hora de tancament</label><div class="custom-select"><select id="sportic_opening_hours_end" name="sportic_opening_hours_end"><?php foreach ($timeSlots_view as $slot_item_view) : ?><option value="<?php echo esc_attr($slot_item_view); ?>" <?php selected($slot_item_view, $currentEnd_view); ?>><?php echo esc_html($slot_item_view); ?></option><?php endforeach; ?></select></div></div></div><p class="description">📌 Només es mostraran les hores dins d'aquest interval.</p></div>
+
+			<div class="card">
+				<h2 class="title">🎨 Colors Corporatius del Shortcode</h2>
+				<p class="intro-text">Defineix aquí els colors principals per al shortcode <code>[sportic_team_schedule]</code>. Aquests colors s'aplicaran a tots els horaris d'equip.</p>
+				<div class="corporate-colors-grid">
+					<div class="color-picker-wrapper">
+						<label for="sportic_main_color">Color Principal</label>
+						<input type="color" id="sportic_main_color" name="sportic_colors[main_color]" value="<?php echo esc_attr($corporate_colors['main_color']); ?>">
+						<p class="description">S'utilitza per al fons de la capçalera i les cel·les actives de la graella.</p>
+					</div>
+					<div class="color-picker-wrapper">
+						<label for="sportic_accent_color">Color d'Accent</label>
+						<input type="color" id="sportic_accent_color" name="sportic_colors[accent_color]" value="<?php echo esc_attr($corporate_colors['accent_color']); ?>">
+						<p class="description">S'utilitza per a detalls com la duració de la sessió.</p>
+					</div>
+				</div>
+			</div>
+
+			<!-- ======================================================================== -->
+			<!-- INICI DEL CANVI: AFEGIT EL NOU BLOC D'OPCIONS DEL SHORTCODE -->
+			<!-- ======================================================================== -->
+			<div class="card">
+				<h2 class="title">⚙️ Opcions del Shortcode</h2>
+				<p class="intro-text">Configura el comportament del shortcode <code>[sportic_team_schedule]</code>.</p>
+				<div class="form-field-wrapper">
+					<label for="hide_empty_days_checkbox">
+						<input type="checkbox" id="hide_empty_days_checkbox" name="sporttic_shortcode_options[hide_empty_days]" value="1" <?php checked($hide_empty_days_checked); ?>>
+						Amagar dies sense entrenaments
+					</label>
+					<p class="description">Si marques aquesta opció, a la vista pública de la setmana només es mostraran els dies que tinguin alguna sessió programada per a l'equip.</p>
+				</div>
+				<div class="form-field-wrapper">
+					<label for="compact_view_checkbox">
+						<input type="checkbox" id="compact_view_checkbox" name="sporttic_shortcode_options[compact_view]" value="1" <?php checked($compact_view_checked); ?>>
+						Vista compacta dels horaris
+					</label>
+					<p class="description">Si marques aquesta opció, els horaris dels equips es mostraran de forma resumida, sense la taula detallada de pistes.</p>
+				</div>
+			</div>
+			<!-- ======================================================================== -->
+			<!-- FI DEL CANVI -->
+			<!-- ======================================================================== -->
+			
+			<div class="card sportic-activities-card">
+				<h2 class="title">🎨 Equips i Activitats</h2>
+				<p class="intro-text">Defineix aquí els equips o activitats que apareixeran a l'horari. El nom de l'activitat no es pot repetir.</p>
+				
+				<div id="sportic-activity-list" class="sportic-activity-list">
+					<?php if (!empty($customActivities_view) && is_array($customActivities_view)) : foreach ($customActivities_view as $index_cl_view => $item_cl_view) :
+						$description_val = stripslashes($item_cl_view['description'] ?? '');
+						$shortcode_val   = $item_cl_view['shortcode'] ?? sanitize_title($description_val);
+						$color_val       = $item_cl_view['color'] ?? '#2563eb';
+					?>
+					<div class="activity-item" data-index="<?php echo esc_attr($index_cl_view); ?>">
+						<div class="activity-details">
+							<input type="text" class="activity-description" name="sportic_custom_activities[<?php echo $index_cl_view; ?>][description]" value="<?php echo esc_attr($description_val); ?>" placeholder="Nom de l'activitat" required>
+							<div class="activity-shortcode-wrapper">
+								<input type="text" class="activity-shortcode" name="sportic_custom_activities[<?php echo $index_cl_view; ?>][shortcode]" value="<?php echo esc_attr($shortcode_val); ?>" placeholder="shortcode-opcional">
+								<small class="shortcode-hint">Shortcode per a vistes públiques: <code>[sportic_team_schedule code="<?php echo esc_html($shortcode_val ?: sanitize_title($description_val ?: 'equip')); ?>"]</code></small>
+							</div>
+						</div>
+						<div class="activity-color">
+							<input type="color" name="sportic_custom_activities[<?php echo $index_cl_view; ?>][color]" value="<?php echo esc_attr($color_val); ?>">
+						</div>
+						<div class="activity-actions">
+							<button type="button" class="button-icon-delete sportic-remove-activity-item" aria-label="Elimina aquesta activitat"><span class="dashicons dashicons-trash"></span></button>
+						</div>
+					</div>
+					<?php endforeach; endif; ?>
+
+					<div class="activity-list-empty-state" style="display: none;">
+						<p>Encara no hi ha activitats definides. Afegeix-ne una per començar.</p>
+					</div>
+				</div>
+
+				<div class="sportic-activities-actions">
+					<button type="button" class="button button-primary" id="add-custom-activity-item">➕ Afegir Nova Activitat</button>
+				</div>
+
+				<template id="activity-item-template">
+					<div class="activity-item" data-index="__INDEX__">
+						<div class="activity-details">
+							<input type="text" class="activity-description" name="sportic_custom_activities[__INDEX__][description]" value="" placeholder="Nom de l'activitat" required>
+							<div class="activity-shortcode-wrapper">
+								<input type="text" class="activity-shortcode" name="sportic_custom_activities[__INDEX__][shortcode]" value="" placeholder="shortcode-opcional">
+								<small class="shortcode-hint">Shortcode per a vistes públiques: <code>[sportic_team_schedule code=""]</code></small>
+							</div>
+						</div>
+						<div class="activity-color">
+							<input type="color" name="sportic_custom_activities[__INDEX__][color]" value="#2563eb">
+						</div>
+						<div class="activity-actions">
+							<button type="button" class="button-icon-delete sportic-remove-activity-item" aria-label="Elimina aquesta activitat"><span class="dashicons dashicons-trash"></span></button>
+						</div>
+					</div>
+				</template>
+			</div>
+			
+			<div class="card"><h2 class="title">🏟 Camps i Pavellons</h2><p class="intro-text">Configura el nom i l'ordre de les instal·lacions.</p><table class="wp-list-table widefat"><thead><tr><th style="width:20%">ID (Slug)</th><th style="width:40%">Nom Visible</th><th style="width:15%">Ordre</th><th style="width:25%">Pistes Definides</th></tr></thead><tbody id="piscines-table"><?php if (empty($poolLabelsConfig_view)): ?><tr><td colspan="4">No hi ha camps configurats.</td></tr><?php else: foreach ($poolLabelsConfig_view as $slug_plc_view => $info_plc_view) : ?><tr data-slug="<?php echo esc_attr($slug_plc_view); ?>"><td><code><?php echo esc_html($slug_plc_view); ?></code></td><td><input type="text" name="sportic_pool_labels[<?php echo esc_attr($slug_plc_view); ?>][label]" value="<?php echo esc_attr($info_plc_view['label']); ?>" class="widefat"></td><td><input type="number" name="sportic_pool_labels[<?php echo esc_attr($slug_plc_view); ?>][order]" value="<?php echo intval($info_plc_view['order']); ?>" class="order-input"></td><td><?php echo isset($info_plc_view['lanes']) ? intval($info_plc_view['lanes']) : 'N/D'; ?></td></tr><?php endforeach; endif; ?></tbody></table></div>
+			
+			<?php submit_button('💾 Desa els Canvis', 'primary large', 'sportic_main_settings_submit_button'); ?>
+		</form>
+
+		<div class="card collapsible-section"><h2 class="title" style="cursor:pointer;" id="toggleCacheManagement">⚡ Gestió de la Memòria Cau<span class="dashicons dashicons-arrow-down-alt2" id="arrowCacheManagement"></span></h2><div id="contentCacheManagement" style="display: none;"><div class="avis avis-general"><p><strong>AVÍS:</strong> Fes servir aquest botó si has esborrat un esdeveniment recurrent i encara apareix a les taules, o si les dades no es refresquen correctament després d'un canvi. Aquesta acció és segura i no esborra cap dada de la teva programació.</p></div><form method="post" action=""><?php wp_nonce_field( 'sportic_clear_cache_action', 'sportic_clear_cache_nonce' ); ?><button type="submit" name="sportic_clear_cache_manual_submit" class="button button-secondary" onclick="return confirm('Estàs segur de voler netejar tota la memòria cau del plugin?');"><span class="dashicons dashicons-trash" style="vertical-align: text-bottom;"></span> Forçar Neteja de la Memòria Cau</button></form></div></div>
+		<div class="card collapsible-section"><h2 class="title" style="cursor:pointer;" id="toggleGestionarAnys">Gestionar Anys de Dades<span class="dashicons dashicons-arrow-down-alt2" id="arrowGestionarAnys"></span></h2><div class="avis avis-general"><p><strong>AVÍS:</strong> Eliminar dades d’un any és permanent. Fes una còpia de seguretat abans.</p></div><div id="contentGestionarAnys" style="display: none;"><p>Elimina totes les dades d’un any concret per optimitzar.</p><?php global $wpdb; $nomTaulaProgAnys = $wpdb->prefix . 'sportic_programacio'; $years_list_from_db = $wpdb->get_col("SELECT DISTINCT YEAR(dia_data) FROM {$nomTaulaProgAnys} ORDER BY YEAR(dia_data) DESC"); if ( empty($years_list_from_db) ) { echo '<p>No hi ha dades per cap any.</p>'; } else { ?><table class="widefat striped"><thead><tr><th>Any</th><th>Accions</th></tr></thead><tbody><?php foreach ($years_list_from_db as $any_item_view): ?><tr><td><?php echo esc_html($any_item_view); ?></td><td><form method="post" action="" style="display:inline;"><?php wp_nonce_field( 'sportic_delete_year_nonce_action', 'sportic_delete_year_nonce_field' ); ?><input type="hidden" name="year_to_delete" value="<?php echo esc_attr($any_item_view); ?>"><input type="submit" name="delete_year" class="button button-danger" value="Eliminar aquest any" onclick="return confirm('Segur de voler eliminar totes les dades de l\'any <?php echo esc_js($any_item_view); ?>? Aquesta acció no es pot desfer.');"></form></td></tr><?php endforeach; ?></tbody></table><?php } ?></div></div>
+		<div class="card collapsible-section"><h2 class="title" style="cursor:pointer;" id="toggleNetejaTotal">Neteja Total de la Programació<span class="dashicons dashicons-arrow-down-alt2" id="arrowNetejaTotal"></span></h2><div class="avis avis-critic"><p><strong>AVÍS CRÍTIC:</strong> Aquesta operació esborrarà TOTES les dades de programació. Fes una còpia de seguretat abans.</p></div><div id="contentNetejaTotal" style="display: none;"><p>Prem aquest botó per eliminar totes les cel·les de programació.</p><form method="post" action=""><?php wp_nonce_field( 'sportic_clean_schedule_nonce_action', 'sportic_clean_schedule_nonce_field' ); ?><input type="submit" name="clean_schedule" class="button button-danger" value="Netejar Tota la Programació" onclick="return confirm('ATENCIÓ: Estàs a punt d\'esborrar totes les dades. Aquesta acció no es pot desfer. Vols continuar?');"></form></div></div>
+	</div>
+	<style>
+	.sportic-settings { padding: 30px 40px; max-width: 1200px !important; margin: 0 auto; box-sizing: border-box; }
+	.card { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 30px; padding: 35px 40px; max-width: 1000px !important; }
+	.title { font-size: 24px; margin: 0 0 30px; color: #1a1a1a; display: flex; align-items: center; gap: 15px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f1; }
+	.time-range-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; margin: 25px 0; }
+	.custom-select { position: relative; width: 100%; margin-top: 8px; }
+	.custom-select select { width: 100%; padding: 12px 20px; border: 2px solid #c3c4c7; border-radius: 8px; appearance: none; font-size: 16px; background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23666" d="M7 10l5 5 5-5z"/></svg>') no-repeat right 12px center; background-size: 16px; }
+	.wp-list-table { width: 100%; border-collapse: collapse; margin: 25px 0; }
+	.wp-list-table th, .wp-list-table td { padding: 8px 4px; text-align: left; vertical-align: top; }
+	.button-danger { background: #ffffff !important; border-color: #aaa7a7 !important; color: #000000 !important; }
+	.order-input { width: 80px !important; padding: 10px 15px !important; text-align: center; }
+	input[type="submit"].button.button-primary.button-large { margin-top: 30px !important; padding: 15px 25px !important; font-size: 16px !important; }
+	.avis { background-color: #fff3cd; border: 1px solid #ffeeba; padding: 10px; margin-bottom: 15px; border-radius: 5px; font-size: 14px; }
+	.avis.avis-critic { background-color: #f8d7da; border-color: #f5c6cb; }
+	.dashicons { color: #444; }
+	.notice.info { border-left-color: #72aee6; }
+
+	/* Estils per al nou bloc de colors */
+	.corporate-colors-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; margin: 25px 0; }
+	.color-picker-wrapper { display: flex; flex-direction: column; gap: 8px; }
+	.color-picker-wrapper label { font-weight: 500; font-size: 1em; color: #3c434a; }
+	.color-picker-wrapper input[type="color"] { width: 80px; height: 40px; border: 1px solid #ddd; border-radius: 8px; padding: 4px; cursor: pointer; }
+	.color-picker-wrapper p.description { font-size: 0.9em; color: #64748b; margin: 4px 0 0; }
+
+	.sportic-activity-list { display: flex; flex-direction: column; gap: 1rem; }
+	.activity-item { display: flex; align-items: center; gap: 1.5rem; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.5rem; transition: box-shadow 0.2s ease-in-out; }
+	.activity-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-color: #cbd5e1; }
+	.activity-details { flex-grow: 1; display: flex; flex-direction: column; gap: 0.5rem; }
+	.activity-details input { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1em; transition: border-color 0.2s, box-shadow 0.2s; }
+	.activity-details input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2); outline: none; }
+	.activity-details .activity-description { font-weight: 500; }
+	.activity-details .activity-shortcode { font-family: monospace; font-size: 0.9em; color: #475569; }
+	.activity-shortcode-wrapper { display: flex; flex-direction: column; gap: 4px; }
+	.activity-shortcode-wrapper .shortcode-hint { font-size: 0.8rem; color: #64748b; padding-left: 2px; }
+	.activity-color { flex-shrink: 0; }
+	.activity-color input[type="color"] { width: 48px; height: 48px; border: none; border-radius: 8px; padding: 0; background: none; cursor: pointer; }
+	.activity-actions { flex-shrink: 0; }
+	.button-icon-delete { background: none; border: none; color: #9ca3af; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; transition: background-color 0.2s, color 0.2s; }
+	.button-icon-delete:hover { background-color: #fee2e2; color: #b91c1c; }
+	.button-icon-delete .dashicons { font-size: 1.2rem; line-height: 1; }
+	.sportic-activities-actions { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; }
+	.activity-list-empty-state { text-align: center; padding: 2.5rem; border: 2px dashed #e2e8f0; border-radius: 12px; color: #64748b; }
+	
+	/* Estils per al nou bloc d'opcions */
+	.form-field-wrapper { padding: 10px 0; }
+	.form-field-wrapper label { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 1em; color: #3c434a; }
+	.form-field-wrapper input[type="checkbox"] { width: 18px; height: 18px; }
+	.form-field-wrapper p.description { font-size: 0.9em; color: #64748b; margin: 8px 0 0 26px; }
+
+	</style>
+	<script>
+	jQuery(document).ready(function($) {
+		const $listContainer = $('#sportic-activity-list');
+		const $addButton = $('#add-custom-activity-item');
+		const $template = $('#activity-item-template');
+		const $emptyState = $('.activity-list-empty-state');
+
+		function slugify(text) {
+			return text.toString().toLowerCase().trim()
+				.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+				.replace(/[^a-z0-9]+/g, '-')
+				.replace(/^-+|-+$/g, '');
+		}
+
+		function updateHint($item) {
+			const description = $item.find('.activity-description').val();
+			const slugDefault = slugify(description || 'activitat');
+			const $shortcodeField = $item.find('.activity-shortcode');
+			const shortcodeValue = $shortcodeField.val().trim();
+			const shortcodeFinal = shortcodeValue !== '' ? shortcodeValue : slugDefault;
+			
+			$shortcodeField.attr('placeholder', 'ex: ' + (slugDefault || 'equip'));
+			$item.find('.shortcode-hint code').text('[sportic_team_schedule code="' + shortcodeFinal + '"]');
+		}
+
+		function buildActivityItem(index, data) {
+			const info = data || {};
+			const newHtml = $template.html().replace(/__INDEX__/g, index);
+			const $newItem = $(newHtml);
+
+			if (info.description) $newItem.find('.activity-description').val(info.description);
+			if (info.shortcode) $newItem.find('.activity-shortcode').val(info.shortcode);
+			if (info.color) $newItem.find('input[type="color"]').val(info.color);
+			
+			updateHint($newItem);
+			return $newItem;
+		}
+
+		function ensureListNotEmpty() {
+			if ($listContainer.children('.activity-item').length === 0) {
+				$emptyState.show();
 			} else {
-				global $wpdb;
-				$nomTaulaProgramacio = $wpdb->prefix . 'sportic_programacio';
-				$nomTaulaBloqueig = $wpdb->prefix . (defined('SPORTIC_LOCK_TABLE') ? SPORTIC_LOCK_TABLE : 'sportic_bloqueig');
-				$start_of_year = $year_to_delete_action . '-01-01';
-				$end_of_year = $year_to_delete_action . '-12-31';
-				$wpdb->query( $wpdb->prepare( "DELETE FROM $nomTaulaProgramacio WHERE dia_data BETWEEN %s AND %s", $start_of_year, $end_of_year ) );
-				$wpdb->query( $wpdb->prepare( "DELETE FROM $nomTaulaBloqueig WHERE dia_data BETWEEN %s AND %s", $start_of_year, $end_of_year ) );
-				if (function_exists('wp_cache_delete')) { wp_cache_delete('sportic_all_data_with_locks', 'sportic_data'); }
-				if (function_exists('sportic_clear_all_week_transients')) { sportic_clear_all_week_transients(); }
-				echo '<div class="updated notice"><p>Dades de l\'any ' . esc_html($year_to_delete_action) . ' eliminades correctament.</p></div>';
-			}
-			$action_processed_this_request = true;
-		}
-	
-		if ( !$action_processed_this_request && isset($_POST['sportic_main_settings_submit_button']) && isset($_POST['sportic_nonce']) ) {
-			if (wp_verify_nonce($_POST['sportic_nonce'], 'sportic_save_settings')) {
-				$feedback_messages = [];
-				$settings_changed = false;
-				
-				if ( isset($_POST['sportic_colors']) && is_array($_POST['sportic_colors']) ) {
-					$colors_input = $_POST['sportic_colors'];
-					$clean_colors = [
-						'main_color' => sanitize_hex_color($colors_input['main_color'] ?? '#2563eb'),
-						'accent_color' => sanitize_hex_color($colors_input['accent_color'] ?? '#2563eb'),
-					];
-					$old_colors = get_option('sportic_shortcode_colors', []);
-					if (serialize($old_colors) !== serialize($clean_colors)) {
-						update_option('sportic_shortcode_colors', $clean_colors);
-						$feedback_messages[] = 'Colors corporatius del shortcode desats correctament!';
-						$settings_changed = true;
-					}
-				}
-	
-				// ========================================================================
-				// INICI DE LA LÒGICA PER DESAR LA NOVA OPCIÓ
-				// ========================================================================
-				if ( isset($_POST['sporttic_shortcode_options']) ) {
-					$options_input = $_POST['sporttic_shortcode_options'];
-					$clean_options = [
-						// Si la casella està marcada, rebem '1'. Si no, no rebem res.
-						'hide_empty_days' => isset($options_input['hide_empty_days']) ? '1' : '0'
-					];
-					$old_options = get_option('sporttic_shortcode_options', []);
-					if (serialize($old_options) !== serialize($clean_options)) {
-						update_option('sporttic_shortcode_options', $clean_options);
-						$feedback_messages[] = 'Opcions del shortcode desades correctament!';
-						$settings_changed = true;
-					}
-				} else {
-					// Si no rebem 'sporttic_shortcode_options', significa que la casella no està marcada
-					// i hem d'assegurar que es desa com a '0'.
-					$old_options = get_option('sporttic_shortcode_options', []);
-					if (!empty($old_options['hide_empty_days']) && $old_options['hide_empty_days'] === '1') {
-						update_option('sporttic_shortcode_options', ['hide_empty_days' => '0']);
-						$feedback_messages[] = 'Opcions del shortcode desades correctament!';
-						$settings_changed = true;
-					}
-				}
-				// ========================================================================
-				// FI DE LA LÒGICA PER DESAR
-				// ========================================================================
-	
-				if ( isset($_POST['sportic_opening_hours_start']) && isset($_POST['sportic_opening_hours_end']) ) { $start_h = sanitize_text_field($_POST['sportic_opening_hours_start']); $end_h = sanitize_text_field($_POST['sportic_opening_hours_end']); $old_hours = get_option('sportic_unfile_opening_hours', array('start' => '16:00', 'end' => '23:00')); if ($old_hours['start'] !== $start_h || $old_hours['end'] !== $end_h) { update_option('sportic_unfile_opening_hours', array('start' => $start_h, 'end' => $end_h)); $feedback_messages[] = 'Rangs horaris desats correctament!'; $settings_changed = true; } }
-				
-				if ( isset($_POST['sportic_custom_activities']) && is_array($_POST['sportic_custom_activities']) ) {
-					$activities_input = $_POST['sportic_custom_activities'];
-					$clean_activities_to_save = [];
-					$descriptions_used = [];
-					$shortcodes_used = [];
-					$error_found = false;
-					$error_message = '';
-	
-					foreach ($activities_input as $activity_row) {
-						if ( !isset($activity_row['description']) || !isset($activity_row['color']) ) continue;
-						$description = trim(stripslashes(sanitize_text_field($activity_row['description'])));
-						$color = sanitize_hex_color($activity_row['color']);
-						$raw_shortcode = isset($activity_row['shortcode']) ? sanitize_text_field($activity_row['shortcode']) : '';
-	
-						if ($description === '') continue;
-	
-						if (in_array(strtolower($description), array_map('strtolower', $descriptions_used))) {
-							$error_found = true;
-							$error_message = "La descripció '" . esc_html($description) . "' està duplicada. No es poden repetir. No s'ha desat res.";
-							break;
-						}
-	
-						$shortcode = sanitize_title($raw_shortcode !== '' ? $raw_shortcode : $description);
-						if ($shortcode === '') {
-							$shortcode = sanitize_title($description);
-						}
-						$base_shortcode = $shortcode;
-						$counter = 2;
-						while (in_array($shortcode, $shortcodes_used, true)) {
-							$shortcode = $base_shortcode . '-' . $counter;
-							$counter++;
-						}
-	
-						if ($color) {
-							$descriptions_used[] = $description;
-							$shortcodes_used[] = $shortcode;
-							$clean_item = [
-								'description' => $description,
-								'color'       => $color,
-								'shortcode'   => $shortcode,
-							];
-							if (isset($activity_row['letter']) && $activity_row['letter'] !== '') {
-								$clean_item['letter'] = sanitize_text_field($activity_row['letter']);
-							} else {
-								$clean_item['letter'] = $description;
-							}
-							if (isset($activity_row['subitems'])) {
-								$clean_item['subitems'] = $activity_row['subitems'];
-							}
-							$clean_activities_to_save[] = $clean_item;
-						}
-					}
-	
-					if ($error_found) {
-						echo '<div class="error notice"><p>' . esc_html($error_message) . '</p></div>';
-					} else {
-						$old_custom_activities = get_option('sportic_unfile_custom_letters', array());
-						if (serialize($old_custom_activities) !== serialize($clean_activities_to_save)) {
-							update_option('sportic_unfile_custom_letters', $clean_activities_to_save);
-							$feedback_messages[] = 'Activitats personalitzades desades correctament!';
-							$settings_changed = true;
-						}
-					}
-				}
-	
-				if ( isset($_POST['sportic_pool_labels']) && is_array($_POST['sportic_pool_labels']) ) { $raw_posted_pool_labels_form = $_POST['sportic_pool_labels']; $pool_settings_changed_flag = false; if (function_exists('sportpavellons_get_pools') && defined('sportpavellons_CONFIG_OPTION_NAME')) { $current_sportpavellons_config_save = get_option(sportpavellons_CONFIG_OPTION_NAME, []); if (!is_array($current_sportpavellons_config_save)) $current_sportpavellons_config_save = []; $updated_sportpavellons_config_save = $current_sportpavellons_config_save; foreach ($raw_posted_pool_labels_form as $slug_from_form_save => $data_from_form_save) { $clean_slug_form = sanitize_key($slug_from_form_save); if (isset($updated_sportpavellons_config_save[$clean_slug_form]) && is_array($data_from_form_save)) { if (isset($data_from_form_save['label']) && $updated_sportpavellons_config_save[$clean_slug_form]['name'] !== sanitize_text_field($data_from_form_save['label'])) { $updated_sportpavellons_config_save[$clean_slug_form]['name'] = sanitize_text_field($data_from_form_save['label']); $pool_settings_changed_flag = true; } if (isset($data_from_form_save['order']) && $updated_sportpavellons_config_save[$clean_slug_form]['order'] !== intval($data_from_form_save['order'])) { $updated_sportpavellons_config_save[$clean_slug_form]['order'] = intval($data_from_form_save['order']); $pool_settings_changed_flag = true; } } } if ($pool_settings_changed_flag) { update_option(sportpavellons_CONFIG_OPTION_NAME, $updated_sportpavellons_config_save); $feedback_messages[] = 'Noms i ordre de camps desats correctament!'; $settings_changed = true; } } else { $cleanPoolLabels_local_save = array(); $allowedSlugs_local_save = array_keys(sportic_unfile_get_pool_labels_sorted()); foreach ($allowedSlugs_local_save as $slug_local_form) { if ( isset($raw_posted_pool_labels_form[$slug_local_form]) && is_array($raw_posted_pool_labels_form[$slug_local_form]) ) { $lbl_local_form = sanitize_text_field( $raw_posted_pool_labels_form[$slug_local_form]['label'] ); $ord_local_form = intval($raw_posted_pool_labels_form[$slug_local_form]['order']); $cleanPoolLabels_local_save[$slug_local_form] = array('label' => $lbl_local_form, 'order' => $ord_local_form); } } if (serialize(get_option('sportic_unfile_pool_labels', array())) !== serialize($cleanPoolLabels_local_save)) { update_option('sportic_unfile_pool_labels', $cleanPoolLabels_local_save); $feedback_messages[] = 'Noms i ordre de camps desats correctament!'; $settings_changed = true; } } }
-				if ($settings_changed) { if (function_exists('wp_cache_delete')) { wp_cache_delete('sportic_all_data_with_locks', 'sportic_data'); } if (function_exists('sportic_clear_all_week_transients')) { sportic_clear_all_week_transients(); } }
-				if (!empty($feedback_messages)) { echo '<div class="updated notice"><p>' . implode('<br>', $feedback_messages) . '</p></div>'; } 
-				elseif (!$settings_changed && !$action_processed_this_request && isset($_POST['sportic_main_settings_submit_button'])) { echo '<div class="info notice"><p>No s\'han detectat canvis a la configuració.</p></div>'; }
-			} else { if (isset($_POST['sportic_nonce'])) echo '<div class="error notice"><p>Error de seguretat (nonce invàlid).</p></div>'; }
-		}
-	
-		$hours_view = get_option('sportic_unfile_opening_hours', array('start' => '16:00', 'end' => '23:00')); $currentStart_view = $hours_view['start']; $currentEnd_view = $hours_view['end']; $timeSlots_view = array(); 
-		try { 
-			$startTime_dt_view = new DateTime('00:00'); 
-			$endTime_dt_view = new DateTime('24:00'); 
-			$interval_dt_view = new DateInterval('PT15M');
-			for ($t_ts_view = clone $startTime_dt_view; $t_ts_view < $endTime_dt_view; $t_ts_view->add($interval_dt_view)) { 
-				$timeSlots_view[] = $t_ts_view->format('H:i'); 
-			} 
-		} catch(Exception $e) {
-			$timeSlots_view = [];
-		}
-		$customActivities_view = get_option('sportic_unfile_custom_letters', array());
-		$poolLabelsConfig_view = sportic_unfile_get_pool_labels_sorted();
-		
-		// Carreguem els colors corporatius guardats
-		$corporate_colors = get_option('sportic_shortcode_colors', [
-			'main_color' => '#2563eb',
-			'accent_color' => '#2563eb',
-		]);
-	
-		// ========================================================================
-		// INICI DE LA LÒGICA PER LLEGIR LA NOVA OPCIÓ
-		// ========================================================================
-		$shortcode_options = get_option('sporttic_shortcode_options', ['hide_empty_days' => '0']);
-		$hide_empty_days_checked = isset($shortcode_options['hide_empty_days']) && $shortcode_options['hide_empty_days'] === '1';
-		// ========================================================================
-		// FI DE LA LÒGICA PER LLEGIR
-		// ========================================================================
-	
-		?>
-		<div class="wrap sportic-settings">
-			<h1 class="sportic-title">🛠 Configuració d'Horaris d'Entrenaments</h1>
-			
-			<form method="post" class="sportic-form">
-				<?php wp_nonce_field('sportic_save_settings', 'sportic_nonce'); ?>
-				<div class="card"><h2 class="title">⏰ Rangs Horaris</h2><div class="time-range-container"><div class="time-picker"><label for="sportic_opening_hours_start">Hora d'inici</label><div class="custom-select"><select id="sportic_opening_hours_start" name="sportic_opening_hours_start"><?php foreach ($timeSlots_view as $slot_item_view) : ?><option value="<?php echo esc_attr($slot_item_view); ?>" <?php selected($slot_item_view, $currentStart_view); ?>><?php echo esc_html($slot_item_view); ?></option><?php endforeach; ?></select></div></div><div class="time-picker"><label for="sportic_opening_hours_end">Hora de tancament</label><div class="custom-select"><select id="sportic_opening_hours_end" name="sportic_opening_hours_end"><?php foreach ($timeSlots_view as $slot_item_view) : ?><option value="<?php echo esc_attr($slot_item_view); ?>" <?php selected($slot_item_view, $currentEnd_view); ?>><?php echo esc_html($slot_item_view); ?></option><?php endforeach; ?></select></div></div></div><p class="description">📌 Només es mostraran les hores dins d'aquest interval.</p></div>
-	
-				<div class="card">
-					<h2 class="title">🎨 Colors Corporatius del Shortcode</h2>
-					<p class="intro-text">Defineix aquí els colors principals per al shortcode <code>[sportic_team_schedule]</code>. Aquests colors s'aplicaran a tots els horaris d'equip.</p>
-					<div class="corporate-colors-grid">
-						<div class="color-picker-wrapper">
-							<label for="sportic_main_color">Color Principal</label>
-							<input type="color" id="sportic_main_color" name="sportic_colors[main_color]" value="<?php echo esc_attr($corporate_colors['main_color']); ?>">
-							<p class="description">S'utilitza per al fons de la capçalera i les cel·les actives de la graella.</p>
-						</div>
-						<div class="color-picker-wrapper">
-							<label for="sportic_accent_color">Color d'Accent</label>
-							<input type="color" id="sportic_accent_color" name="sportic_colors[accent_color]" value="<?php echo esc_attr($corporate_colors['accent_color']); ?>">
-							<p class="description">S'utilitza per a detalls com la duració de la sessió.</p>
-						</div>
-					</div>
-				</div>
-	
-				<!-- ======================================================================== -->
-				<!-- NOU BLOC: Opcions del Shortcode -->
-				<!-- ======================================================================== -->
-				<div class="card">
-					<h2 class="title">⚙️ Opcions del Shortcode</h2>
-					<p class="intro-text">Configura el comportament del shortcode <code>[sportic_team_schedule]</code>.</p>
-					<div class="form-field-wrapper">
-						<label for="hide_empty_days_checkbox">
-							<input type="checkbox" id="hide_empty_days_checkbox" name="sporttic_shortcode_options[hide_empty_days]" value="1" <?php checked($hide_empty_days_checked); ?>>
-							Amagar dies sense entrenaments
-						</label>
-						<p class="description">Si marques aquesta opció, a la vista pública de la setmana només es mostraran els dies que tinguin alguna sessió programada per a l'equip.</p>
-					</div>
-				</div>
-				<!-- ======================================================================== -->
-				<!-- FI DEL NOU BLOC -->
-				<!-- ======================================================================== -->
-				
-				<div class="card sportic-activities-card">
-					<h2 class="title">🎨 Equips i Activitats</h2>
-					<p class="intro-text">Defineix aquí els equips o activitats que apareixeran a l'horari. El nom de l'activitat no es pot repetir.</p>
-					
-					<div id="sportic-activity-list" class="sportic-activity-list">
-						<?php if (!empty($customActivities_view) && is_array($customActivities_view)) : foreach ($customActivities_view as $index_cl_view => $item_cl_view) :
-							$description_val = stripslashes($item_cl_view['description'] ?? '');
-							$shortcode_val   = $item_cl_view['shortcode'] ?? sanitize_title($description_val);
-							$color_val       = $item_cl_view['color'] ?? '#2563eb';
-						?>
-						<div class="activity-item" data-index="<?php echo esc_attr($index_cl_view); ?>">
-							<div class="activity-details">
-								<input type="text" class="activity-description" name="sportic_custom_activities[<?php echo $index_cl_view; ?>][description]" value="<?php echo esc_attr($description_val); ?>" placeholder="Nom de l'activitat" required>
-								<div class="activity-shortcode-wrapper">
-									<input type="text" class="activity-shortcode" name="sportic_custom_activities[<?php echo $index_cl_view; ?>][shortcode]" value="<?php echo esc_attr($shortcode_val); ?>" placeholder="shortcode-opcional">
-									<small class="shortcode-hint">Shortcode per a vistes públiques: <code>[sportic_team_schedule code="<?php echo esc_html($shortcode_val ?: sanitize_title($description_val ?: 'equip')); ?>"]</code></small>
-								</div>
-							</div>
-							<div class="activity-color">
-								<input type="color" name="sportic_custom_activities[<?php echo $index_cl_view; ?>][color]" value="<?php echo esc_attr($color_val); ?>">
-							</div>
-							<div class="activity-actions">
-								<button type="button" class="button-icon-delete sportic-remove-activity-item" aria-label="Elimina aquesta activitat"><span class="dashicons dashicons-trash"></span></button>
-							</div>
-						</div>
-						<?php endforeach; endif; ?>
-	
-						<div class="activity-list-empty-state" style="display: none;">
-							<p>Encara no hi ha activitats definides. Afegeix-ne una per començar.</p>
-						</div>
-					</div>
-	
-					<div class="sportic-activities-actions">
-						<button type="button" class="button button-primary" id="add-custom-activity-item">➕ Afegir Nova Activitat</button>
-					</div>
-	
-					<template id="activity-item-template">
-						<div class="activity-item" data-index="__INDEX__">
-							<div class="activity-details">
-								<input type="text" class="activity-description" name="sportic_custom_activities[__INDEX__][description]" value="" placeholder="Nom de l'activitat" required>
-								<div class="activity-shortcode-wrapper">
-									<input type="text" class="activity-shortcode" name="sportic_custom_activities[__INDEX__][shortcode]" value="" placeholder="shortcode-opcional">
-									<small class="shortcode-hint">Shortcode per a vistes públiques: <code>[sportic_team_schedule code=""]</code></small>
-								</div>
-							</div>
-							<div class="activity-color">
-								<input type="color" name="sportic_custom_activities[__INDEX__][color]" value="#2563eb">
-							</div>
-							<div class="activity-actions">
-								<button type="button" class="button-icon-delete sportic-remove-activity-item" aria-label="Elimina aquesta activitat"><span class="dashicons dashicons-trash"></span></button>
-							</div>
-						</div>
-					</template>
-				</div>
-				
-				<div class="card"><h2 class="title">🏟 Camps i Pavellons</h2><p class="intro-text">Configura el nom i l'ordre de les instal·lacions.</p><table class="wp-list-table widefat"><thead><tr><th style="width:20%">ID (Slug)</th><th style="width:40%">Nom Visible</th><th style="width:15%">Ordre</th><th style="width:25%">Pistes Definides</th></tr></thead><tbody id="piscines-table"><?php if (empty($poolLabelsConfig_view)): ?><tr><td colspan="4">No hi ha camps configurats.</td></tr><?php else: foreach ($poolLabelsConfig_view as $slug_plc_view => $info_plc_view) : ?><tr data-slug="<?php echo esc_attr($slug_plc_view); ?>"><td><code><?php echo esc_html($slug_plc_view); ?></code></td><td><input type="text" name="sportic_pool_labels[<?php echo esc_attr($slug_plc_view); ?>][label]" value="<?php echo esc_attr($info_plc_view['label']); ?>" class="widefat"></td><td><input type="number" name="sportic_pool_labels[<?php echo esc_attr($slug_plc_view); ?>][order]" value="<?php echo intval($info_plc_view['order']); ?>" class="order-input"></td><td><?php echo isset($info_plc_view['lanes']) ? intval($info_plc_view['lanes']) : 'N/D'; ?></td></tr><?php endforeach; endif; ?></tbody></table></div>
-				
-				<?php submit_button('💾 Desa els Canvis', 'primary large', 'sportic_main_settings_submit_button'); ?>
-			</form>
-	
-			<div class="card collapsible-section"><h2 class="title" style="cursor:pointer;" id="toggleCacheManagement">⚡ Gestió de la Memòria Cau<span class="dashicons dashicons-arrow-down-alt2" id="arrowCacheManagement"></span></h2><div id="contentCacheManagement" style="display: none;"><div class="avis avis-general"><p><strong>AVÍS:</strong> Fes servir aquest botó si has esborrat un esdeveniment recurrent i encara apareix a les taules, o si les dades no es refresquen correctament després d'un canvi. Aquesta acció és segura i no esborra cap dada de la teva programació.</p></div><form method="post" action=""><?php wp_nonce_field( 'sportic_clear_cache_action', 'sportic_clear_cache_nonce' ); ?><button type="submit" name="sportic_clear_cache_manual_submit" class="button button-secondary" onclick="return confirm('Estàs segur de voler netejar tota la memòria cau del plugin?');"><span class="dashicons dashicons-trash" style="vertical-align: text-bottom;"></span> Forçar Neteja de la Memòria Cau</button></form></div></div>
-			<div class="card collapsible-section"><h2 class="title" style="cursor:pointer;" id="toggleGestionarAnys">Gestionar Anys de Dades<span class="dashicons dashicons-arrow-down-alt2" id="arrowGestionarAnys"></span></h2><div class="avis avis-general"><p><strong>AVÍS:</strong> Eliminar dades d’un any és permanent. Fes una còpia de seguretat abans.</p></div><div id="contentGestionarAnys" style="display: none;"><p>Elimina totes les dades d’un any concret per optimitzar.</p><?php global $wpdb; $nomTaulaProgAnys = $wpdb->prefix . 'sportic_programacio'; $years_list_from_db = $wpdb->get_col("SELECT DISTINCT YEAR(dia_data) FROM {$nomTaulaProgAnys} ORDER BY YEAR(dia_data) DESC"); if ( empty($years_list_from_db) ) { echo '<p>No hi ha dades per cap any.</p>'; } else { ?><table class="widefat striped"><thead><tr><th>Any</th><th>Accions</th></tr></thead><tbody><?php foreach ($years_list_from_db as $any_item_view): ?><tr><td><?php echo esc_html($any_item_view); ?></td><td><form method="post" action="" style="display:inline;"><?php wp_nonce_field( 'sportic_delete_year_nonce_action', 'sportic_delete_year_nonce_field' ); ?><input type="hidden" name="year_to_delete" value="<?php echo esc_attr($any_item_view); ?>"><input type="submit" name="delete_year" class="button button-danger" value="Eliminar aquest any" onclick="return confirm('Segur de voler eliminar totes les dades de l\'any <?php echo esc_js($any_item_view); ?>? Aquesta acció no es pot desfer.');"></form></td></tr><?php endforeach; ?></tbody></table><?php } ?></div></div>
-			<div class="card collapsible-section"><h2 class="title" style="cursor:pointer;" id="toggleNetejaTotal">Neteja Total de la Programació<span class="dashicons dashicons-arrow-down-alt2" id="arrowNetejaTotal"></span></h2><div class="avis avis-critic"><p><strong>AVÍS CRÍTIC:</strong> Aquesta operació esborrarà TOTES les dades de programació. Fes una còpia de seguretat abans.</p></div><div id="contentNetejaTotal" style="display: none;"><p>Prem aquest botó per eliminar totes les cel·les de programació.</p><form method="post" action=""><?php wp_nonce_field( 'sportic_clean_schedule_nonce_action', 'sportic_clean_schedule_nonce_field' ); ?><input type="submit" name="clean_schedule" class="button button-danger" value="Netejar Tota la Programació" onclick="return confirm('ATENCIÓ: Estàs a punt d\'esborrar totes les dades. Aquesta acció no es pot desfer. Vols continuar?');"></form></div></div>
-		</div>
-		<style>
-		.sportic-settings { padding: 30px 40px; max-width: 1200px !important; margin: 0 auto; box-sizing: border-box; }
-		.card { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 30px; padding: 35px 40px; max-width: 1000px !important; }
-		.title { font-size: 24px; margin: 0 0 30px; color: #1a1a1a; display: flex; align-items: center; gap: 15px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f1; }
-		.time-range-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; margin: 25px 0; }
-		.custom-select { position: relative; width: 100%; margin-top: 8px; }
-		.custom-select select { width: 100%; padding: 12px 20px; border: 2px solid #c3c4c7; border-radius: 8px; appearance: none; font-size: 16px; background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23666" d="M7 10l5 5 5-5z"/></svg>') no-repeat right 12px center; background-size: 16px; }
-		.wp-list-table { width: 100%; border-collapse: collapse; margin: 25px 0; }
-		.wp-list-table th, .wp-list-table td { padding: 8px 4px; text-align: left; vertical-align: top; }
-		.button-danger { background: #ffffff !important; border-color: #aaa7a7 !important; color: #000000 !important; }
-		.order-input { width: 80px !important; padding: 10px 15px !important; text-align: center; }
-		input[type="submit"].button.button-primary.button-large { margin-top: 30px !important; padding: 15px 25px !important; font-size: 16px !important; }
-		.avis { background-color: #fff3cd; border: 1px solid #ffeeba; padding: 10px; margin-bottom: 15px; border-radius: 5px; font-size: 14px; }
-		.avis.avis-critic { background-color: #f8d7da; border-color: #f5c6cb; }
-		.dashicons { color: #444; }
-		.notice.info { border-left-color: #72aee6; }
-	
-		/* Estils per al nou bloc de colors */
-		.corporate-colors-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; margin: 25px 0; }
-		.color-picker-wrapper { display: flex; flex-direction: column; gap: 8px; }
-		.color-picker-wrapper label { font-weight: 500; font-size: 1em; color: #3c434a; }
-		.color-picker-wrapper input[type="color"] { width: 80px; height: 40px; border: 1px solid #ddd; border-radius: 8px; padding: 4px; cursor: pointer; }
-		.color-picker-wrapper p.description { font-size: 0.9em; color: #64748b; margin: 4px 0 0; }
-	
-		.sportic-activity-list { display: flex; flex-direction: column; gap: 1rem; }
-		.activity-item { display: flex; align-items: center; gap: 1.5rem; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem 1.5rem; transition: box-shadow 0.2s ease-in-out; }
-		.activity-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-color: #cbd5e1; }
-		.activity-details { flex-grow: 1; display: flex; flex-direction: column; gap: 0.5rem; }
-		.activity-details input { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1em; transition: border-color 0.2s, box-shadow 0.2s; }
-		.activity-details input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2); outline: none; }
-		.activity-details .activity-description { font-weight: 500; }
-		.activity-details .activity-shortcode { font-family: monospace; font-size: 0.9em; color: #475569; }
-		.activity-shortcode-wrapper { display: flex; flex-direction: column; gap: 4px; }
-		.activity-shortcode-wrapper .shortcode-hint { font-size: 0.8rem; color: #64748b; padding-left: 2px; }
-		.activity-color { flex-shrink: 0; }
-		.activity-color input[type="color"] { width: 48px; height: 48px; border: none; border-radius: 8px; padding: 0; background: none; cursor: pointer; }
-		.activity-actions { flex-shrink: 0; }
-		.button-icon-delete { background: none; border: none; color: #9ca3af; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; transition: background-color 0.2s, color 0.2s; }
-		.button-icon-delete:hover { background-color: #fee2e2; color: #b91c1c; }
-		.button-icon-delete .dashicons { font-size: 1.2rem; line-height: 1; }
-		.sportic-activities-actions { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; }
-		.activity-list-empty-state { text-align: center; padding: 2.5rem; border: 2px dashed #e2e8f0; border-radius: 12px; color: #64748b; }
-		
-		/* Estils per al nou bloc d'opcions */
-		.form-field-wrapper { padding: 10px 0; }
-		.form-field-wrapper label { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 1em; color: #3c434a; }
-		.form-field-wrapper input[type="checkbox"] { width: 18px; height: 18px; }
-		.form-field-wrapper p.description { font-size: 0.9em; color: #64748b; margin: 8px 0 0 26px; }
-	
-		</style>
-		<script>
-		jQuery(document).ready(function($) {
-			const $listContainer = $('#sportic-activity-list');
-			const $addButton = $('#add-custom-activity-item');
-			const $template = $('#activity-item-template');
-			const $emptyState = $('.activity-list-empty-state');
-	
-			function slugify(text) {
-				return text.toString().toLowerCase().trim()
-					.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-					.replace(/[^a-z0-9]+/g, '-')
-					.replace(/^-+|-+$/g, '');
-			}
-	
-			function updateHint($item) {
-				const description = $item.find('.activity-description').val();
-				const slugDefault = slugify(description || 'activitat');
-				const $shortcodeField = $item.find('.activity-shortcode');
-				const shortcodeValue = $shortcodeField.val().trim();
-				const shortcodeFinal = shortcodeValue !== '' ? shortcodeValue : slugDefault;
-				
-				$shortcodeField.attr('placeholder', 'ex: ' + (slugDefault || 'equip'));
-				$item.find('.shortcode-hint code').text('[sportic_team_schedule code="' + shortcodeFinal + '"]');
-			}
-	
-			function buildActivityItem(index, data) {
-				const info = data || {};
-				const newHtml = $template.html().replace(/__INDEX__/g, index);
-				const $newItem = $(newHtml);
-	
-				if (info.description) $newItem.find('.activity-description').val(info.description);
-				if (info.shortcode) $newItem.find('.activity-shortcode').val(info.shortcode);
-				if (info.color) $newItem.find('input[type="color"]').val(info.color);
-				
-				updateHint($newItem);
-				return $newItem;
-			}
-	
-			function ensureListNotEmpty() {
-				if ($listContainer.children('.activity-item').length === 0) {
-					$emptyState.show();
-				} else {
-					$emptyState.hide();
-				}
-			}
-			
-			$listContainer.find('.activity-item').each(function(){
-				updateHint($(this));
-			});
-	
-			$addButton.on('click', function() {
 				$emptyState.hide();
-				const newIndex = Date.now();
-				const $newItem = buildActivityItem(newIndex, null);
-				$listContainer.append($newItem.hide().fadeIn(300));
-			});
-	
-			$listContainer.on('click', '.sportic-remove-activity-item', function() {
-				const $item = $(this).closest('.activity-item');
-				$item.fadeOut(300, function() {
-					$item.remove();
-					ensureListNotEmpty();
-				});
-			});
-			
-			$listContainer.on('input', '.activity-description, .activity-shortcode', function() {
-				const $item = $(this).closest('.activity-item');
-				updateHint($item);
-			});
-	
-			$('#toggleGestionarAnys').click(function() { $('#contentGestionarAnys').slideToggle(300); $('#arrowGestionarAnys').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2'); });
-			$('#toggleNetejaTotal').click(function() { $('#contentNetejaTotal').slideToggle(300); $('#arrowNetejaTotal').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2'); });
-			$('#toggleCacheManagement').click(function() { $('#contentCacheManagement').slideToggle(300); $('#arrowCacheManagement').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2'); });
-	
-			ensureListNotEmpty();
+			}
+		}
+		
+		$listContainer.find('.activity-item').each(function(){
+			updateHint($(this));
 		});
-		</script>
-		<?php
-	}	
+
+		$addButton.on('click', function() {
+			$emptyState.hide();
+			const newIndex = Date.now();
+			const $newItem = buildActivityItem(newIndex, null);
+			$listContainer.append($newItem.hide().fadeIn(300));
+		});
+
+		$listContainer.on('click', '.sportic-remove-activity-item', function() {
+			const $item = $(this).closest('.activity-item');
+			$item.fadeOut(300, function() {
+				$item.remove();
+				ensureListNotEmpty();
+			});
+		});
+		
+		$listContainer.on('input', '.activity-description, .activity-shortcode', function() {
+			const $item = $(this).closest('.activity-item');
+			updateHint($item);
+		});
+
+		$('#toggleGestionarAnys').click(function() { $('#contentGestionarAnys').slideToggle(300); $('#arrowGestionarAnys').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2'); });
+		$('#toggleNetejaTotal').click(function() { $('#contentNetejaTotal').slideToggle(300); $('#arrowNetejaTotal').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2'); });
+		$('#toggleCacheManagement').click(function() { $('#contentCacheManagement').slideToggle(300); $('#arrowCacheManagement').toggleClass('dashicons-arrow-down-alt2 dashicons-arrow-up-alt2'); });
+
+		ensureListNotEmpty();
+	});
+	</script>
+	<?php
+}	
 		
 	/**
 	* Helpers per obtenir i comparar el rang d'hores
@@ -2537,6 +3796,9 @@ function sportic_unfile_mostrar_dies( $slug, $dadesPiscina, $weekDates = array()
 				}
 				echo '</h3>';
 				
+				// ========================================================================
+				// INICI DEL CANVI: AFEGIM EL BOTÓ 'MIXT'
+				// ========================================================================
 				echo '<div class="sportic-toolbar" style="padding: 8px 0; margin-bottom: 10px; display: flex; gap: 8px;">
 						<button type="button" class="button lock-button" title="Bloquejar cel·les seleccionades">
 							<span class="dashicons dashicons-lock"></span> Bloquejar
@@ -2544,26 +3806,15 @@ function sportic_unfile_mostrar_dies( $slug, $dadesPiscina, $weekDates = array()
 						<button type="button" class="button unlock-button" title="Desbloquejar cel·les seleccionades">
 							<span class="dashicons dashicons-unlock"></span> Desbloquejar
 						</button>
+						<button type="button" class="button mix-button" title="Assignar equips mixts a les cel·les seleccionades">
+							<span class="dashicons dashicons-groups"></span> Mixt
+						</button>
 					  </div>';
+				// ========================================================================
+				// FI DEL CANVI
+				// ========================================================================
 		
-					// =========================================================================
-					// INICI DEL CANVI CLAU: ELIMINEM EL BLOC DE CODI REDUNDANT
-					// =========================================================================
-					//
-					// Les dades que arriben a $dadesPiscina ja han estat processades per
-					// sportic_llegir_de_taula_sense_prefix(), que ja ha aplicat els recurrents
-					// i ha respectat les excepcions. No cal tornar a aplicar-los aquí.
-					//
-					// AQUEST BLOC DE CODI SENCER S'HA ELIMINAT:
-					//
-					// $recurrent_events_map = sportic_get_all_recurrent_events_map();
-					// if (isset($recurrent_events_map[$dateStr][$slug])) { ... }
-					//
 					$scheduleForThisDay = $dadesPiscina[$dateStr] ?? sportic_unfile_crear_programacio_default($slug);
-					//
-					// =========================================================================
-					// FI DEL CANVI CLAU
-					// =========================================================================
 					
 					$horesDisplay = array_keys($scheduleForThisDay);
 					sort($horesDisplay);
@@ -2597,22 +3848,58 @@ function sportic_unfile_mostrar_dies( $slug, $dadesPiscina, $weekDates = array()
 									for ($c = 0; $c < $numCarrils; $c++) {
 										
 										$valorRaw = $arrVals[$c] ?? 'l';
-										// ARA la lògica de detecció és més simple, perquè les dades ja venen processades.
 										$isLocked = strpos((string)$valorRaw, '!') === 0;
 										$isRecurrent = strpos((string)$valorRaw, '@') === 0;
 										$valorBase = preg_replace('/^[@!]/', '', (string)$valorRaw);
 			
 										if ($valorBase === false || $valorBase === '') $valorBase = 'l';
 										
-										$color = $activitiesMap[$valorBase] ?? '#ffffff';
-										$displayText = ($valorBase === 'l' || $valorBase === 'b') ? '' : $valorBase;
-										
 										$tdClasses = 'sportic-cell';
 										if ($isLocked) $tdClasses .= ' sportic-locked';
 										elseif ($isRecurrent) $tdClasses .= ' sportic-recurrent';
+		
+										$inline_style = '';
+										$text_style = '';
+										$displayText = '';
+		
+										if (strpos($valorBase, 'MIX:') === 0) {
+											$tdClasses .= ' sportic-mixed';
+											$teams = array_map('trim', explode('|', substr($valorBase, 4)));
+											
+											$colors_to_blend = [];
+											foreach ($teams as $team_name) {
+												if (isset($activitiesMap[$team_name])) {
+													$colors_to_blend[] = $activitiesMap[$team_name];
+												}
+											}
+											
+											$blended_color = sportic_blend_hex_colors($colors_to_blend);
+											$inline_style = 'background-color: ' . esc_attr($blended_color) . ' !important;';
+											$text_color = sportic_get_contrast_for_hex($blended_color);
+											$text_style = 'color: ' . $text_color . ' !important;';
+											
+											$initials = [];
+											foreach ($teams as $team) {
+												$words = explode(' ', trim($team));
+												$team_initials = '';
+												foreach ($words as $word) {
+													if (!empty($word)) {
+														$team_initials .= mb_substr($word, 0, 1);
+													}
+												}
+												$initials[] = strtoupper($team_initials);
+											}
+											$displayText = implode('+', $initials);
+		
+										} else {
+											$color = $activitiesMap[$valorBase] ?? '#ffffff';
+											$inline_style = 'background-color:' . esc_attr($color) . ' !important;';
+											$displayText = ($valorBase === 'l' || $valorBase === 'b') ? '' : $valorBase;
+										}
 										
-										echo '<td class="' . $tdClasses . '" data-row="' . esc_attr($rowIndex) . '" data-col="' . esc_attr($c) . '" data-valor="' . esc_attr($valorBase) . '" style="background-color:'.esc_attr($color).' !important;"' . ($isLocked ? ' data-locked="1"' : '') . ($isRecurrent ? ' data-recurrent="1"' : '') . '>';
-										echo '<span class="sportic-text">' . esc_html($displayText) . '</span>';
+										echo '<td class="' . $tdClasses . '" data-row="' . esc_attr($rowIndex) . '" data-col="' . esc_attr($c) . '" data-valor="' . esc_attr($valorBase) . '" style="' . $inline_style . '"' . ($isLocked ? ' data-locked="1"' : '') . ($isRecurrent ? ' data-recurrent="1"' : '') . '>';
+										echo '<span class="sportic-text" style="' . $text_style . '">' . esc_html($displayText) . '</span>';
+		
 										if ($isLocked) echo '<span class="sportic-lock-icon dashicons dashicons-lock"></span>';
 										elseif ($isRecurrent) echo '<span class="sportic-recurrent-icon fas fa-sync-alt"></span>';
 										echo '</td>';
@@ -2630,8 +3917,7 @@ function sportic_unfile_mostrar_dies( $slug, $dadesPiscina, $weekDates = array()
 			}
 			echo '</div>';
 		}
-		
-						
+												
 	/**
 	* Mostra la taula editable de Condicions Ambientals a l'admin
 	*/
@@ -2716,612 +4002,644 @@ function sportic_unfile_mostrar_pagina() {
 	
 		/**
 		 * [MODIFICADA] Renderitza la pantalla de selecció de Llocs.
-		 * Ara inclou el botó de Pantalla Completa i carrega els scripts necessaris.
+		 * Ara inclou el botó de Pantalla Completa.
 		 */
-		function sportic_render_lloc_selector_view() {
-			if (!function_exists('sportllocs_get_llocs')) {
-				echo '<div class="wrap"><div class="notice notice-error"><p>Error: El plugin de configuració de Llocs no està actiu. Si us plau, activa\'l per continuar.</p></div></div>';
-				return;
-			}
-	
-			$tots_els_llocs = sportllocs_get_llocs();
-			$tots_els_pavellons = function_exists('sportllocs_get_all_pavellons') ? sportllocs_get_all_pavellons() : [];
-			
-			$pavellons_per_lloc = [];
-			foreach ($tots_els_pavellons as $pavello) {
-				$lloc_slug = $pavello['lloc_slug'] ?? 'sense_lloc';
-				if (!isset($pavellons_per_lloc[$lloc_slug])) {
-					$pavellons_per_lloc[$lloc_slug] = 0;
+		if (!function_exists('sportic_render_lloc_selector_view')) {
+			function sportic_render_lloc_selector_view() {
+				if (!function_exists('sportllocs_get_llocs')) {
+					echo '<div class="wrap"><div class="notice notice-error"><p>Error: El plugin de configuració de Llocs no està actiu. Si us plau, activa\'l per continuar.</p></div></div>';
+					return;
 				}
-				$pavellons_per_lloc[$lloc_slug]++;
-			}
 	
-			$camí_imatge_logo = plugin_dir_url(__FILE__) . 'imatges/logo.png';
-			?>
-			<div class="wrap sportic-lloc-selector-page" style="position: relative;">
+				$tots_els_llocs = sportllocs_get_llocs();
+				$tots_els_pavellons = function_exists('sportllocs_get_all_pavellons') ? sportllocs_get_all_pavellons() : [];
 				
-				<!-- NOU BOTÓ MODE ZEN (FULLSCREEN) PER A LA PANTALLA DE SELECCIÓ -->
-				<button type="button" id="sportic-fullscreen-toggle" class="sportic-action-btn-icon" title="Mode Zen (Pantalla Completa)" style="position: absolute; top: 0; right: 0; z-index: 10;">
-					<span class="dashicons dashicons-editor-expand" style="line-height: inherit; font-size: 20px;"></span>
-				</button>
-	
-				<header class="sportic-selector-header">
-					<img src="<?php echo esc_url($camí_imatge_logo); ?>" alt="Logo SporTIC" class="sportic-selector-logo"/>
-					<h1>Selector d'Instal·lacions</h1>
-					<p class="sportic-selector-subtitle">Selecciona un lloc per començar a gestionar els seus horaris i pavellons.</p>
-				</header>
-	
-				<?php if (empty($tots_els_llocs)): ?>
-					<div class="sportic-no-llocs-message">
-						<span class="dashicons dashicons-warning"></span>
-						<p><strong>No s'han trobat llocs configurats.</strong></p>
-						<p>Per començar, ves a <a href="<?php echo esc_url(admin_url('admin.php?page=sportllocs-config-manage')); ?>">Configuració de Llocs i Pavellons</a> per afegir el teu primer lloc.</p>
-					</div>
-				<?php else: ?>
-					<main class="sportic-lloc-grid">
-						<?php foreach ($tots_els_llocs as $slug => $data): 
-							$url_lloc = admin_url('admin.php?page=sportic-onefile-menu&lloc=' . esc_attr($slug));
-							$pavellons_count = $pavellons_per_lloc[$slug] ?? 0;
-							$image_id = $data['image_id'] ?? 0;
-							$image_url = $image_id ? wp_get_attachment_image_url($image_id, 'medium') : '';
-						?>
-							<a href="<?php echo esc_url($url_lloc); ?>" class="sportic-lloc-card">
-								<div class="sportic-lloc-card-image">
-									<?php if ($image_url): ?>
-										<img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($data['name']); ?>">
-									<?php else: ?>
-										<span class="dashicons dashicons-admin-multisite"></span>
-									<?php endif; ?>
-								</div>
-								<div class="sportic-lloc-card-content">
-									<h2><?php echo esc_html($data['name']); ?></h2>
-									<p><?php echo esc_html($pavellons_count); ?> pavellons gestionats</p>
-								</div>
-								<div class="sportic-lloc-card-arrow">
-									<span class="dashicons dashicons-arrow-right-alt2"></span>
-								</div>
-							</a>
-						<?php endforeach; ?>
-					</main>
-				<?php endif; ?>
-			</div>
-			<style>
-				#wpbody-content {
-					background-color: #f0f2f5;
-				}
-				.sportic-lloc-selector-page {
-					max-width: 1200px;
-					margin: 40px auto;
-					padding: 20px;
-				}
-				/* Estil pel botó zen en aquesta pantalla */
-				.sportic-lloc-selector-page .sportic-action-btn-icon {
-					background-color: #fff;
-					width: 44px; 
-					height: 44px; 
-					color: #4b5563; 
-					border: 1px solid #e2e8f0;
-					border-radius: 50%;
-					box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-					cursor: pointer;
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					transition: all 0.2s ease;
-				}
-				.sportic-lloc-selector-page .sportic-action-btn-icon:hover {
-					background-color: #f8fafc;
-					color: #4061aa;
-					border-color: #4061aa;
-					transform: scale(1.05);
+				$pavellons_per_lloc = [];
+				foreach ($tots_els_pavellons as $pavello) {
+					$lloc_slug = $pavello['lloc_slug'] ?? 'sense_lloc';
+					if (!isset($pavellons_per_lloc[$lloc_slug])) {
+						$pavellons_per_lloc[$lloc_slug] = 0;
+					}
+					$pavellons_per_lloc[$lloc_slug]++;
 				}
 	
-				.sportic-selector-header {
-					text-align: center;
-					margin-bottom: 40px;
-				}
-				.sportic-selector-logo {
-					height: 60px;
-					width: auto;
-					margin-bottom: 15px;
-				}
-				.sportic-selector-header h1 {
-					font-family: 'Barlow Condensed', sans-serif;
-					font-size: 3em;
-					font-weight: 600;
-					font-style: italic;
-					color: #1e293b;
-					margin: 0 0 10px;
-				}
-				.sportic-selector-subtitle {
-					font-family: 'Space Grotesk', sans-serif;
-					font-size: 1.1em;
-					color: #64748b;
-					margin: 0;
-				}
-				.sportic-lloc-grid {
-					display: grid;
-					grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-					gap: 2rem;
-				}
-				.sportic-lloc-card {
-					background: #ffffff;
-					border-radius: 16px;
-					display: flex;
-					flex-direction: column;
-					text-decoration: none;
-					color: inherit;
-					border: 1px solid #e2e8f0;
-					box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-					transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
-					overflow: hidden;
-				}
-				.sportic-lloc-card:hover {
-					transform: translateY(-5px);
-					box-shadow: 0 10px 25px rgba(0,0,0,0.08);
-					border-color: #4061aa;
-				}
-				.sportic-lloc-card-image {
-					width: 100%;
-					height: 160px;
-					background-color: #f1f5f9;
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					border-bottom: 1px solid #e2e8f0;
-				}
-				.sportic-lloc-card-image img {
-					width: 100%;
-					height: 100%;
-					object-fit: cover;
-				}
-				.sportic-lloc-card-image .dashicons {
-					font-size: 64px;
-					width: 64px;
-					height: 64px;
-					color: #94a3b8;
-				}
-				.sportic-lloc-card-content {
-					padding: 20px 25px;
-					display: flex;
-					flex-direction: column;
-					flex-grow: 1;
-				}
-				.sportic-lloc-card-content h2 {
-					font-family: 'Space Grotesk', sans-serif;
-					font-size: 1.3em;
-					font-weight: 700;
-					color: #1e293b;
-					margin: 0 0 5px;
-				}
-				.sportic-lloc-card-content p {
-					margin: 0;
-					font-size: 0.9em;
-					color: #64748b;
-				}
-				.sportic-lloc-card-arrow {
-					margin-top: auto;
-					padding: 0 25px 20px;
-					align-self: flex-end;
-				}
-				.sportic-lloc-card-arrow .dashicons {
-					font-size: 28px;
-					color: #94a3b8;
-					transition: color 0.2s;
-				}
-				.sportic-lloc-card:hover .sportic-lloc-card-arrow .dashicons {
-					color: #4061aa;
-				}
-				.sportic-no-llocs-message {
-					background-color: #fff;
-					border-radius: 12px;
-					padding: 40px;
-					text-align: center;
-					border: 1px solid #e2e8f0;
-				}
-				.sportic-no-llocs-message .dashicons {
-					font-size: 40px;
-					color: #f59e0b;
-					width: 40px;
-					height: 40px;
-					margin-bottom: 15px;
-				}
-				.sportic-no-llocs-message p {
-					margin: 5px 0 0;
-					font-size: 1.1em;
-					color: #475569;
-				}
-			</style>
-			<?php
-			// IMPORTANT: Carreguem els estils i JS globals per tal que el mode zen funcioni també aquí
-			sportic_unfile_output_inline_css(); 
-			sportic_unfile_output_inline_js();
+				$camí_imatge_logo = plugin_dir_url(__FILE__) . 'imatges/logo.png';
+				?>
+				<div class="wrap sportic-lloc-selector-page" style="position: relative;">
+					
+					<!-- AFEGIT: BOTÓ MAXIMITZAR (MODE ZEN) PER AL SELECTOR -->
+					<button type="button" id="sportic-fullscreen-toggle" class="sportic-action-btn-icon" title="Mode Zen (Pantalla Completa)" style="position: absolute; top: 0; right: 0; z-index: 10;">
+						<span class="dashicons dashicons-editor-expand" style="line-height: inherit; font-size: 20px;"></span>
+					</button>
+	
+					<header class="sportic-selector-header">
+						<img src="<?php echo esc_url($camí_imatge_logo); ?>" alt="Logo SporTIC" class="sportic-selector-logo"/>
+						<h1>Selector d'Instal·lacions</h1>
+						<p class="sportic-selector-subtitle">Selecciona un lloc per començar a gestionar els seus horaris i pavellons.</p>
+					</header>
+	
+					<?php if (empty($tots_els_llocs)): ?>
+						<div class="sportic-no-llocs-message">
+							<span class="dashicons dashicons-warning"></span>
+							<p><strong>No s'han trobat llocs configurats.</strong></p>
+							<p>Per començar, ves a <a href="<?php echo esc_url(admin_url('admin.php?page=sportllocs-config-manage')); ?>">Configuració de Llocs i Pavellons</a> per afegir el teu primer lloc.</p>
+						</div>
+					<?php else: ?>
+						<main class="sportic-lloc-grid">
+							<?php foreach ($tots_els_llocs as $slug => $data): 
+								$url_lloc = admin_url('admin.php?page=sportic-onefile-menu&lloc=' . esc_attr($slug));
+								$pavellons_count = $pavellons_per_lloc[$slug] ?? 0;
+								$image_id = $data['image_id'] ?? 0;
+								$image_url = $image_id ? wp_get_attachment_image_url($image_id, 'medium') : '';
+							?>
+								<a href="<?php echo esc_url($url_lloc); ?>" class="sportic-lloc-card">
+									<div class="sportic-lloc-card-image">
+										<?php if ($image_url): ?>
+											<img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($data['name']); ?>">
+										<?php else: ?>
+											<span class="dashicons dashicons-admin-multisite"></span>
+										<?php endif; ?>
+									</div>
+									<div class="sportic-lloc-card-content">
+										<h2><?php echo esc_html($data['name']); ?></h2>
+										<p><?php echo esc_html($pavellons_count); ?> pavellons gestionats</p>
+									</div>
+									<div class="sportic-lloc-card-arrow">
+										<span class="dashicons dashicons-arrow-right-alt2"></span>
+									</div>
+								</a>
+							<?php endforeach; ?>
+						</main>
+					<?php endif; ?>
+				</div>
+				<style>
+					#wpbody-content {
+						background-color: #f0f2f5;
+					}
+					.sportic-lloc-selector-page {
+						max-width: 1200px;
+						margin: 40px auto;
+						padding: 20px;
+					}
+					/* Estil pel botó zen en aquesta pantalla */
+					.sportic-lloc-selector-page .sportic-action-btn-icon {
+						background-color: #fff;
+						width: 44px; 
+						height: 44px; 
+						color: #4b5563; 
+						border: 1px solid #e2e8f0;
+						border-radius: 50%;
+						box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+						cursor: pointer;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						transition: all 0.2s ease;
+					}
+					.sportic-lloc-selector-page .sportic-action-btn-icon:hover {
+						background-color: #f8fafc;
+						color: #4061aa;
+						border-color: #4061aa;
+						transform: scale(1.05);
+					}
+	
+					.sportic-selector-header {
+						text-align: center;
+						margin-bottom: 40px;
+					}
+					.sportic-selector-logo {
+						height: 60px;
+						width: auto;
+						margin-bottom: 15px;
+					}
+					.sportic-selector-header h1 {
+						font-family: 'Barlow Condensed', sans-serif;
+						font-size: 3em;
+						font-weight: 600;
+						font-style: italic;
+						color: #1e293b;
+						margin: 0 0 10px;
+					}
+					.sportic-selector-subtitle {
+						font-family: 'Space Grotesk', sans-serif;
+						font-size: 1.1em;
+						color: #64748b;
+						margin: 0;
+					}
+					.sportic-lloc-grid {
+						display: grid;
+						grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+						gap: 2rem;
+					}
+					.sportic-lloc-card {
+						background: #ffffff;
+						border-radius: 16px;
+						display: flex;
+						flex-direction: column;
+						text-decoration: none;
+						color: inherit;
+						border: 1px solid #e2e8f0;
+						box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+						transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
+						overflow: hidden;
+					}
+					.sportic-lloc-card:hover {
+						transform: translateY(-5px);
+						box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+						border-color: #4061aa;
+					}
+					.sportic-lloc-card-image {
+						width: 100%;
+						height: 160px;
+						background-color: #f1f5f9;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						border-bottom: 1px solid #e2e8f0;
+					}
+					.sportic-lloc-card-image img {
+						width: 100%;
+						height: 100%;
+						object-fit: cover;
+					}
+					.sportic-lloc-card-image .dashicons {
+						font-size: 64px;
+						width: 64px;
+						height: 64px;
+						color: #94a3b8;
+					}
+					.sportic-lloc-card-content {
+						padding: 20px 25px;
+						display: flex;
+						flex-direction: column;
+						flex-grow: 1;
+					}
+					.sportic-lloc-card-content h2 {
+						font-family: 'Space Grotesk', sans-serif;
+						font-size: 1.3em;
+						font-weight: 700;
+						color: #1e293b;
+						margin: 0 0 5px;
+					}
+					.sportic-lloc-card-content p {
+						margin: 0;
+						font-size: 0.9em;
+						color: #64748b;
+					}
+					.sportic-lloc-card-arrow {
+						margin-top: auto;
+						padding: 0 25px 20px;
+						align-self: flex-end;
+					}
+					.sportic-lloc-card-arrow .dashicons {
+						font-size: 28px;
+						color: #94a3b8;
+						transition: color 0.2s;
+					}
+					.sportic-lloc-card:hover .sportic-lloc-card-arrow .dashicons {
+						color: #4061aa;
+					}
+					.sportic-no-llocs-message {
+						background-color: #fff;
+						border-radius: 12px;
+						padding: 40px;
+						text-align: center;
+						border: 1px solid #e2e8f0;
+					}
+					.sportic-no-llocs-message .dashicons {
+						font-size: 40px;
+						color: #f59e0b;
+						width: 40px;
+						height: 40px;
+						margin-bottom: 15px;
+					}
+					.sportic-no-llocs-message p {
+						margin: 5px 0 0;
+						font-size: 1.1em;
+						color: #475569;
+					}
+				</style>
+				<?php
+				// IMPORTANT: Carreguem els estils i JS globals per tal que el mode zen funcioni també aquí
+				sportic_unfile_output_inline_css(); 
+				sportic_unfile_output_inline_js();
+			}
 		}
 	
 		/**
-		 * Renderitza la vista de gestió d'horaris (amb calendari, graella, etc.)
-		 * Aquesta funció conté la lògica principal un cop seleccionat el lloc.
+		 * [NOVA FUNCIÓ AUXILIAR]
+		 * Conté tota la lògica original per renderitzar la vista de gestió d'horaris.
+		 * S'executa només DESPRÉS de seleccionar un lloc.
 		 */
-		function sportic_render_schedule_view() {
-			if ( ! current_user_can( 'manage_options' ) ) {
-				return;
-			}
-	
-			if ( isset( $_GET['error_msg'] ) && ! empty( $_GET['error_msg'] ) ) {
-				echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( urldecode($_GET['error_msg']) ) . '</p></div>';
-			}
-			if ( isset( $_GET['warning_msg'] ) && ! empty( $_GET['warning_msg'] ) ) {
-				echo '<div class="notice notice-warning is-dismissible"><p>' . esc_html( urldecode($_GET['warning_msg']) ) . '</p></div>';
-			}
-			if ( isset( $_GET['info_msg'] ) && ! empty( $_GET['info_msg'] ) ) {
-				echo '<div class="notice notice-info is-dismissible"><p>' . esc_html( urldecode($_GET['info_msg']) ) . '</p></div>';
-			}
-			if ( isset( $_GET['status'] ) && $_GET['status'] === 'ok' && !isset($_GET['info_msg']) && !isset($_GET['warning_msg']) && !isset($_GET['error_msg'])) {
-			}
-			if ( isset( $_GET['status'] ) && $_GET['status'] === 'template_applied' && !isset($_GET['warning_msg'])) {
-				echo '<div class="updated notice is-dismissible"><p>Plantilla aplicada correctament!</p></div>';
-			}
-			if ( isset($_GET['status']) && $_GET['status'] === 'undo_ok' ) {
-				echo '<div class="updated notice is-dismissible"><p>S\'ha desfet l\'últim canvi!</p></div>';
-			}
-			if ( isset($_GET['status']) && $_GET['status'] === 'redo_ok' ) {
-				echo '<div class="updated notice is-dismissible"><p>S\'ha refet l\'últim canvi desfet!</p></div>';
-			}
-	
-			$lloc_actiu_slug = isset($_GET['lloc']) ? sanitize_key($_GET['lloc']) : '';
-			$lloc_actiu_nom = 'Lloc desconegut';
-			if (function_exists('sportllocs_get_llocs')) {
-				$tots_els_llocs = sportllocs_get_llocs();
-				if (isset($tots_els_llocs[$lloc_actiu_slug])) {
-					$lloc_actiu_nom = $tots_els_llocs[$lloc_actiu_slug]['name'];
+		if (!function_exists('sportic_render_schedule_view')) {
+			function sportic_render_schedule_view() {
+				if ( ! current_user_can( 'manage_options' ) ) {
+					return;
 				}
-			}
-			
-			$dades = get_option('sportic_unfile_dades', array());
 	
-			$any = isset( $_GET['cal_year'] ) ? intval( $_GET['cal_year'] ) : intval( date( 'Y', current_time( 'timestamp' ) ) );
-			$mes = isset( $_GET['cal_month'] ) ? intval( $_GET['cal_month'] ) : intval( date( 'n', current_time( 'timestamp' ) ) );
-			if ( isset( $_GET['selected_date'] ) ) {
-				$data_seleccionada = sanitize_text_field( $_GET['selected_date'] );
-				if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data_seleccionada)) {
-					$data_seleccionada = current_time('Y-m-d');
+				if ( isset( $_GET['error_msg'] ) && ! empty( $_GET['error_msg'] ) ) {
+					echo '<div class="notice notice-error is-dismissible"><p>' . esc_html( urldecode($_GET['error_msg']) ) . '</p></div>';
 				}
-				try { $dataObj = new DateTime( $data_seleccionada ); } catch ( Exception $e ) { $dataObj = new DateTime(current_time( 'Y-m-d' )); $data_seleccionada = $dataObj->format('Y-m-d'); }
-			} else {
-				$dataObj = new DateTime( current_time( 'Y-m-d' ) );
-				$data_seleccionada = $dataObj->format( 'Y-m-d' );
-			}
+				if ( isset( $_GET['warning_msg'] ) && ! empty( $_GET['warning_msg'] ) ) {
+					echo '<div class="notice notice-warning is-dismissible"><p>' . esc_html( urldecode($_GET['warning_msg']) ) . '</p></div>';
+				}
+				if ( isset( $_GET['info_msg'] ) && ! empty( $_GET['info_msg'] ) ) {
+					echo '<div class="notice notice-info is-dismissible"><p>' . esc_html( urldecode($_GET['info_msg']) ) . '</p></div>';
+				}
+				if ( isset( $_GET['status'] ) && $_GET['status'] === 'ok' && !isset($_GET['info_msg']) && !isset($_GET['warning_msg']) && !isset($_GET['error_msg'])) {
+				}
+				if ( isset( $_GET['status'] ) && $_GET['status'] === 'template_applied' && !isset($_GET['warning_msg'])) {
+					echo '<div class="updated notice is-dismissible"><p>Plantilla aplicada correctament!</p></div>';
+				}
+				if ( isset($_GET['status']) && $_GET['status'] === 'undo_ok' ) {
+					echo '<div class="updated notice is-dismissible"><p>S\'ha desfet l\'últim canvi!</p></div>';
+				}
+				if ( isset($_GET['status']) && $_GET['status'] === 'redo_ok' ) {
+					echo '<div class="updated notice is-dismissible"><p>S\'ha refet l\'últim canvi desfet!</p></div>';
+				}
 	
-			$diaSetmana   = (int) $dataObj->format( 'N' );
-			$setmanaInici = clone $dataObj;
-			$setmanaInici->modify( '-' . ( $diaSetmana - 1 ) . ' days' );
-			$setmanaDates = array();
-			$diesNoms     = array( 'dilluns', 'dimarts', 'dimecres', 'dijous', 'divendres', 'dissabte', 'diumenge' );
-			for ( $i = 0; $i < 7; $i++ ) {
-				$diaTemp = clone $setmanaInici;
-				$diaTemp->modify( "+$i days" );
-				$setmanaDates[ $diesNoms[ $i ] ] = $diaTemp;
-			}
-			$mappingDies = array( 1 => 'dilluns', 2 => 'dimarts', 3 => 'dimecres', 4 => 'dijous', 5 => 'divendres', 6 => 'dissabte', 7 => 'diumenge' );
-			if ( isset($_GET['active_subday']) && in_array(sanitize_text_field($_GET['active_subday']), $diesNoms) ) {
-				$diaSeleccionatKey = sanitize_text_field($_GET['active_subday']);
-			} else {
-				$currentDayOfWeekNum = (int) $dataObj->format('N');
-				$diaSeleccionatKey = isset($mappingDies[$currentDayOfWeekNum]) ? $mappingDies[$currentDayOfWeekNum] : 'dilluns';
-			}
+				$lloc_actiu_slug = isset($_GET['lloc']) ? sanitize_key($_GET['lloc']) : '';
+				$lloc_actiu_nom = 'Lloc desconegut';
+				if (function_exists('sportllocs_get_llocs')) {
+					$tots_els_llocs = sportllocs_get_llocs();
+					if (isset($tots_els_llocs[$lloc_actiu_slug])) {
+						$lloc_actiu_nom = $tots_els_llocs[$lloc_actiu_slug]['name'];
+					}
+				}
+				
+				$dades = get_option('sportic_unfile_dades', array());
 	
-			$etiquetesPiscines = sportic_unfile_get_pool_labels_sorted();
-			
-			$activeTab  = isset( $_GET['active_tab'] ) ? sanitize_text_field( $_GET['active_tab'] ) : '';
-			if (empty($activeTab) && !empty($etiquetesPiscines)) {
-				reset($etiquetesPiscines);
-				$firstPoolSlug = key($etiquetesPiscines);
-				$activeTab = '#' . $firstPoolSlug;
-			}
-			
-			$activePool = '';
-			if ( ! empty($activeTab) ) {
-				$activePool = ltrim($activeTab, '#');
-			}
+				$any = isset( $_GET['cal_year'] ) ? intval( $_GET['cal_year'] ) : intval( date( 'Y', current_time( 'timestamp' ) ) );
+				$mes = isset( $_GET['cal_month'] ) ? intval( $_GET['cal_month'] ) : intval( date( 'n', current_time( 'timestamp' ) ) );
+				if ( isset( $_GET['selected_date'] ) ) {
+					$data_seleccionada = sanitize_text_field( $_GET['selected_date'] );
+					if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data_seleccionada)) {
+						$data_seleccionada = current_time('Y-m-d');
+					}
+					try { $dataObj = new DateTime( $data_seleccionada ); } catch ( Exception $e ) { $dataObj = new DateTime(current_time( 'Y-m-d' )); $data_seleccionada = $dataObj->format('Y-m-d'); }
+				} else {
+					$dataObj = new DateTime( current_time( 'Y-m-d' ) );
+					$data_seleccionada = $dataObj->format( 'Y-m-d' );
+				}
 	
-			?>
-			<div id="sportic_loader_overlay_admin" style="display:block; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(249, 250, 251, 0.9); z-index:999999; text-align:center;">
-				<div style="position:relative; top:50%; transform:translateY(-50%);">
-					<div class="sportic-loader" style="margin:0 auto;"></div>
-					<div class="sportic-loader-text" style="margin-top:20px; font-size:18px; font-weight:bold; color:#333;">Carregant...</div>
+				$diaSetmana   = (int) $dataObj->format( 'N' );
+				$setmanaInici = clone $dataObj;
+				$setmanaInici->modify( '-' . ( $diaSetmana - 1 ) . ' days' );
+				$setmanaDates = array();
+				$diesNoms     = array( 'dilluns', 'dimarts', 'dimecres', 'dijous', 'divendres', 'dissabte', 'diumenge' );
+				for ( $i = 0; $i < 7; $i++ ) {
+					$diaTemp = clone $setmanaInici;
+					$diaTemp->modify( "+$i days" );
+					$setmanaDates[ $diesNoms[ $i ] ] = $diaTemp;
+				}
+				$mappingDies = array( 1 => 'dilluns', 2 => 'dimarts', 3 => 'dimecres', 4 => 'dijous', 5 => 'divendres', 6 => 'dissabte', 7 => 'diumenge' );
+				if ( isset($_GET['active_subday']) && in_array(sanitize_text_field($_GET['active_subday']), $diesNoms) ) {
+					$diaSeleccionatKey = sanitize_text_field($_GET['active_subday']);
+				} else {
+					$currentDayOfWeekNum = (int) $dataObj->format('N');
+					$diaSeleccionatKey = isset($mappingDies[$currentDayOfWeekNum]) ? $mappingDies[$currentDayOfWeekNum] : 'dilluns';
+				}
+	
+				$etiquetesPiscines = sportic_unfile_get_pool_labels_sorted();
+				
+				$activeTab  = isset( $_GET['active_tab'] ) ? sanitize_text_field( $_GET['active_tab'] ) : '';
+				if (empty($activeTab) && !empty($etiquetesPiscines)) {
+					reset($etiquetesPiscines);
+					$firstPoolSlug = key($etiquetesPiscines);
+					$activeTab = '#' . $firstPoolSlug;
+				}
+				
+				$activePool = '';
+				if ( ! empty($activeTab) ) {
+					$activePool = ltrim($activeTab, '#');
+				}
+	
+				?>
+				<div id="sportic_loader_overlay_admin" style="display:block; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(249, 250, 251, 0.9); z-index:999999; text-align:center;">
+					<div style="position:relative; top:50%; transform:translateY(-50%);">
+						<div class="sportic-loader" style="margin:0 auto;"></div>
+						<div class="sportic-loader-text" style="margin-top:20px; font-size:18px; font-weight:bold; color:#333;">Carregant...</div>
+					</div>
 				</div>
-			</div>
-			
-			<?php
-			$camí_imatge_logo = plugin_dir_url(__FILE__) . 'imatges/logo.png';
+				
+				<?php
+				$camí_imatge_logo = plugin_dir_url(__FILE__) . 'imatges/logo.png';
 	
-			echo '<div class="wrap sportic-unfile-admin" id="sportic_main_container" style="display:none; padding-top: 15px;">';
+				echo '<div class="wrap sportic-unfile-admin" id="sportic_main_container" style="display:none; padding-top: 15px;">';
 	
-			echo '<div class="sportic-main-header">';
-				echo '<div class="sportic-header-left">';
-					echo '<a href="' . esc_url(admin_url('admin.php?page=sportic-onefile-menu')) . '" class="sportic-back-to-llocs" title="Tornar al selector de llocs">';
-						echo '<span class="dashicons dashicons-arrow-left-alt"></span>';
-					echo '</a>';
-					echo '<div class="sportic-logo-wrapper">';
-						echo '<img src="' . esc_url($camí_imatge_logo) . '" alt="Logo SporTIC" />';
-					echo '</div>';
-	
-					echo '<div class="sportic-lloc-display-wrapper">';
-						echo '<span class="dashicons dashicons-location-alt"></span>';
-						echo '<span class="sportic-lloc-display-name">' . esc_html($lloc_actiu_nom) . '</span>';
-					echo '</div>';
-				echo '</div>'; 
-	
-				echo '<div class="sportic-actions-wrapper">';
-					?>
-					<form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="undo-redo-form">
-						<input type="hidden" name="action" value="sportic_undo_change">
-						<?php wp_nonce_field( 'sportic_undo_action', 'sportic_undo_nonce' ); ?>
-						<input type="hidden" name="sportic_active_tab"    value="<?php echo esc_attr($activeTab); ?>">
-						<input type="hidden" name="sportic_active_subday" value="<?php echo esc_attr($diaSeleccionatKey); ?>">
-						<input type="hidden" name="selected_date"         value="<?php echo esc_attr($data_seleccionada); ?>">
-						<input type="hidden" name="cal_year"              value="<?php echo intval($any); ?>">
-						<input type="hidden" name="cal_month"             value="<?php echo intval($mes); ?>">
-						<input type="hidden" name="lloc"                  value="<?php echo esc_attr($lloc_actiu_slug); ?>">
-						<button type="submit" class="sportic-action-btn-icon" title="Desfer">
-							<img src="<?php echo esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-undo.png'); ?>" alt="Desfer" style="width:20px; height:20px;" />
-						</button>
-					</form>
-					<form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="undo-redo-form">
-						<input type="hidden" name="action" value="sportic_redo_change">
-						<?php wp_nonce_field( 'sportic_redo_action', 'sportic_redo_nonce' ); ?>
-						<input type="hidden" name="sportic_active_tab"    value="<?php echo esc_attr($activeTab); ?>">
-						<input type="hidden" name="sportic_active_subday" value="<?php echo esc_attr($diaSeleccionatKey); ?>">
-						<input type="hidden" name="selected_date"         value="<?php echo esc_attr($data_seleccionada); ?>">
-						<input type="hidden" name="cal_year"              value="<?php echo intval($any); ?>">
-						<input type="hidden" name="cal_month"             value="<?php echo intval($mes); ?>">
-						<input type="hidden" name="lloc"                  value="<?php echo esc_attr($lloc_actiu_slug); ?>">
-						<button type="submit" class="sportic-action-btn-icon" title="Refer">
-							<img src="<?php echo esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-redo.png'); ?>" alt="Refer" style="width:20px; height:20px;" />
-						</button>
-					</form>
-					
-					<!-- BOTÓ MODE ZEN (FULLSCREEN) -->
-					<button type="button" id="sportic-fullscreen-toggle" class="sportic-action-btn-icon" title="Mode Zen (Pantalla Completa)">
-						<span class="dashicons dashicons-editor-expand" style="line-height: inherit; font-size: 20px;"></span>
-					</button>
-					
-					<?php
-					echo '<button type="submit" class="sportic-action-btn-save" form="sportic-main-form">';
-						echo '<img src="' . esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-save.png') . '" alt="Desar" style="width:18px; height:18px; margin-right: 8px;" />';
-						echo 'DESAR CANVIS';
-					echo '</button>';
-				echo '</div>';
-			echo '</div>';
-	
-			?>
-			<style>
-				body.toplevel_page_sportic-onefile-menu { background-color: #ffffff !important; }
-				.sportic-unfile-admin { background-color: #ffffff; }
-				.sportic-loader { border: 8px solid #e5e7eb; border-top: 8px solid #3b82f6; border-radius: 50%; width: 60px; height: 60px; animation: sportic_spin 1s linear infinite; }
-				@keyframes sportic_spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-				.sportic-main-header { position: sticky; top: 32px; z-index: 999; background: rgba(255, 255, 255, 0.97); padding: 10px 20px; margin: -10px -20px 25px -20px; border-radius: 50px; display: flex; align-items: center; justify-content: space-between; transition: top 0.3s ease; }
-				.sportic-header-left { display: flex; align-items: center; gap: 15px; }
-				.sportic-back-to-llocs { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background-color: #f3f4f6; border-radius: 50%; text-decoration: none; transition: background-color 0.2s; }
-				.sportic-back-to-llocs:hover { background-color: #e5e7eb; }
-				.sportic-back-to-llocs .dashicons { font-size: 24px; color: #4b5563; line-height: 1; }
-				.sportic-logo-wrapper img { height: 56px; width: auto; }
-				.sportic-lloc-display-wrapper { display: flex; align-items: center; gap: 8px; background-color: #f3f4f6; padding: 8px 15px; border-radius: 30px; border: 1px solid #e5e7eb; }
-				.sportic-lloc-display-wrapper .dashicons { color: #6b7280; font-size: 22px; }
-				.sportic-lloc-display-name { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.1em; color: #1f2937; }
-				.sportic-actions-wrapper { display: flex; align-items: center; gap: 12px; }
-				.sportic-action-btn-icon, .sportic-action-btn-save { display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 21px; font-weight: 600; cursor: pointer; transition: background-color 0.2s, box-shadow 0.2s; }
-				.sportic-action-btn-icon { background-color: #4061aa; width: 44px; height: 44px; color: #4b5563; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); }
-				.sportic-action-btn-icon:hover { background-color: #f3f4f6; }
-				.sportic-action-btn-icon img { vertical-align: middle; }
-				.sportic-action-btn-save { background-color: #4061aa; color: white; padding: 0 20px; height: 44px; font-size: 14px; }
-				.sportic-action-btn-save:hover { background-color: #1d4ed8; }
-				button.sportic-action-btn-icon { width: auto !important; min-width: 0 !important; max-width: none !important; height: 40px !important; border-radius: 9999px !important; padding-left: 0px !important; padding-right: 0px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; line-height: 1 !important; box-sizing: border-box !important; width: 40px !important; }
-				button.sportic-action-btn-icon:hover, button.sportic-action-btn:hover { background-color: #00b2ca !important; }
-				button.sportic-action-btn-icon:hover, button.sportic-action-btn-save:hover, button.sportic-action-btn:hover { background-color: #00b2ca !important; }
-				.top-row { display: grid; grid-template-columns: 50% 1fr; gap: 25px; margin-bottom: 25px; align-items: start; }
-				a.nav-tab.sportic-folder-tab.sportic-main-tab { margin-left: -10px !important; margin-right: 15px !important;}
-				button.sportic-folder-tab.sportic-secondary-tab { margin-left: -10px !important; margin-right: 10px !important }
-				.sportic-column { display: flex; flex-direction: column; }
-				.sportic-column-header { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; padding-left: 10px; }
-				.sportic-column-header h2 { font-size: 1.3em; margin: 0; font-weight: 600; color: #374151; }
-				.sportic-column-header img { width: 20px; height: 20px; }
-				.sportic-content-box { flex-grow: 1; display: flex; flex-direction: column; background: #fff; border-radius: 30px; padding: 25px; box-shadow: 0 4px 31px 0 rgba(0,0,0,.15), 0 2px 4px -2px rgba(0,0,0,.07); }
-				.top-card { padding: 0; box-shadow: none; background: transparent; border-radius: 0; }
-				.top-card .sportic-folder-tabs-wrapper { position: relative; padding-left: 10px; }
-				.sportic-folder-tab.sportic-main-tab:not(.nav-tab-active):hover { background-color: #eaeef6 !important; z-index: 11; }
-				.top-card .sportic-folder-tab { display: inline-flex; align-items: center; background-color: #f3f4f6; color: #4b5563; padding: 15px 25px; border: 1px solid #e5e7eb; border-top-left-radius: 15px; border-top-right-radius: 15px; font-weight: 600; cursor: pointer; position: relative; margin-left: 4px; margin-bottom: 0; z-index: 1; font-size: 1.1em; }
-				.top-card .sportic-folder-tab.active { background-color: #eaeef6; color: #111827; border-bottom-color: #eaeef6; z-index: 3; }
-				.top-card .sportic-folder-content { display: grid; position: relative; border: 1px solid #e5e7eb; border-radius: 30px; padding: 21px 25px; margin-top: -12px; border-top-left-radius: 0px; z-index: 2; background: #eaeef6; }
-				.top-card .sportic-folder-content .content-pane { grid-column: 1; grid-row: 1; opacity: 0; pointer-events: none; transition: opacity 0.15s ease-in-out; }
-				.top-card .sportic-folder-content .content-pane.active { opacity: 1; pointer-events: auto; }
-				.sportic-action-btn-save span.dashicons { color: #ffffff !important; margin-right: 7px;; }
-				.sportic-action-btn-icon span.dashicons { color: #ffffff !important; font-size: 20px; width: 20px; height: 20px; line-height: 20px; }
-			</style>
-			<?php
-	
-			echo '<div class="top-row">';
-				echo '<div class="sportic-column">';
-					echo '<div class="sportic-column-header">';
-						echo '<img src="' . esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-calendar.png') . '" alt="Calendari" />';
-						echo '<h2>CALENDARI</h2>';
-					echo '</div>';
-					echo '<div class="sportic-content-box sportic-calendari">';
-						sportic_unfile_mostrar_calendari();
-					echo '</div>';
-				echo '</div>';
-				echo '<div class="sportic-column top-card">';
-					echo '<div class="sportic-folder-tabs-wrapper">';
-						echo '<button id="tab-llegenda" class="sportic-folder-tab active">';
-							echo '<img src="' . esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-legend.png') . '" alt="Llegenda" style="width:20px; height:20px; margin-right: 8px;" />';
-							echo 'LLEGENDA</button>';
-						echo '<button id="tab-plant" class="sportic-folder-tab">';
-							echo '<img src="' . esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-templates.png') . '" alt="Plantilles" style="width:20px; height:20px; margin-right: 8px;" />';
-							echo 'PLANTILLES</button>';
-					echo '</div>';
-					echo '<div class="sportic-content-box sportic-folder-content">';
-						echo '<div id="carpeta-llegenda" class="content-pane active">';
-							echo sportic_unfile_mostrar_llegenda();
+				echo '<div class="sportic-main-header">';
+					echo '<div class="sportic-header-left">';
+						echo '<a href="' . esc_url(admin_url('admin.php?page=sportic-onefile-menu')) . '" class="sportic-back-to-llocs" title="Tornar al selector de llocs">';
+							echo '<span class="dashicons dashicons-arrow-left-alt"></span>';
+						echo '</a>';
+						echo '<div class="sportic-logo-wrapper">';
+							echo '<img src="' . esc_url($camí_imatge_logo) . '" alt="Logo SporTIC" />';
 						echo '</div>';
-						echo '<div id="carpeta-plantilles" class="content-pane">';
-							?>
-							<form id="form-aplicar-plantilla" method="post" action="<?php echo esc_url( admin_url('admin-post.php') ); ?>">
-								<input type="hidden" name="action" value="sportic_unfile_aplicar_plantilla" />
-								<?php wp_nonce_field( 'sportic_apply_template_action', 'sportic_apply_template_nonce' ); ?>
-								<div style="margin-bottom:10px;"><label for="template_option" style="display:block; margin-bottom:5px; font-weight: 600;">Plantilla:</label><select name="template_option" id="template_option" required style="width: 100%;"><?php
-								$plantilles = sportic_unfile_get_plantilles($lloc_actiu_slug);
-								if ( ! is_array( $plantilles ) ) $plantilles = array();
-								echo '<option value="">-- Escull una plantilla --</option>';
-								$plantillesDia = array(); $plantillesSetmana = array(); $plantillesSingle = array();
-								foreach ( $plantilles as $tmplId => $tmpl ) { if ( ! is_array($tmpl) ) continue; if ( isset( $tmpl['type'] ) ) { if ( $tmpl['type'] === 'week' ) $plantillesSetmana[ $tmplId ] = $tmpl; elseif ( $tmpl['type'] === 'single' ) $plantillesSingle[ $tmplId ] = $tmpl; else $plantillesDia[ $tmplId ] = $tmpl; } else $plantillesDia[ $tmplId ] = $tmpl; }
-								if (!empty($plantillesDia)) { echo '<optgroup label="Plantilles Diàries">'; foreach ($plantillesDia as $pid => $pt) echo '<option value="' . esc_attr($pid . '|day') . '">' . esc_html($pt['name']) . '</option>'; echo '</optgroup>'; }
-								if (!empty($plantillesSetmana)) { echo '<optgroup label="Plantilles Setmanals">'; foreach ($plantillesSetmana as $pid => $pt) echo '<option value="' . esc_attr($pid . '|week') . '">' . esc_html($pt['name']) . '</option>'; echo '</optgroup>'; }
-								if (!empty($plantillesSingle)) { echo '<optgroup label="Plantilles Individuals">'; $poolLabelsForOpts = sportic_unfile_get_pool_labels_sorted(); foreach ($plantillesSingle as $pid => $pt) { $poolSlugForOpt = isset($pt['piscina']) ? $pt['piscina'] : 'infantil'; $poolLabelForOpt = isset($poolLabelsForOpts[$poolSlugForOpt]) ? $poolLabelsForOpts[$poolSlugForOpt]['label'] : ucfirst($poolSlugForOpt); echo '<option value="' . esc_attr($pid . '|single|' . $poolSlugForOpt) . '">' . esc_html($pt['name'] . ' (' . $poolLabelForOpt . ')') . '</option>'; } echo '</optgroup>'; }
-								?></select></div>
-								<div style="margin-bottom:10px;"><label for="rang_data_inici" style="display:block; margin-bottom:5px; font-weight: 600;">Data inici:</label><input type="date" id="rang_data_inici" name="rang_data_inici" required style="width: 100%;"/></div>
-								<div style="margin-bottom:10px;"><label for="rang_data_fi" style="display:block; margin-bottom:5px; font-weight: 600;">Data fi:</label><input type="date" id="rang_data_fi" name="rang_data_fi" required style="width: 100%;"/></div>
-								<div style="margin-bottom:10px;"><label style="display:block; margin-bottom:5px; font-weight: 600;">Dies d'aplicació (opcional):</label><div>
-									<input type="checkbox" name="dia_filter[]" value="1" id="dia1_sub"> <label for="dia1_sub">Dl</label> 
-									<input type="checkbox" name="dia_filter[]" value="2" id="dia2_sub"> <label for="dia2_sub">Dt</label> 
-									<input type="checkbox" name="dia_filter[]" value="3" id="dia3_sub"> <label for="dia3_sub">Dc</label> 
-									<input type="checkbox" name="dia_filter[]" value="4" id="dia4_sub"> <label for="dia4_sub">Dj</label> 
-									<input type="checkbox" name="dia_filter[]" value="5" id="dia5_sub"> <label for="dia5_sub">Dv</label> 
-									<input type="checkbox" name="dia_filter[]" value="6" id="dia6_sub"> <label for="dia6_sub">Ds</label> 
-									<input type="checkbox" name="dia_filter[]" value="7" id="dia7_sub"> <label for="dia7_sub">Dg</label>
-								</div></div>
-								<div class="sportic-ignore-lock-wrapper" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee;"><label for="ignore_lock_template"><input type="checkbox" id="ignore_lock_template" name="ignore_lock_template" value="1"> Ignorar bloqueig de cel·les</label></div>
-								<input type="hidden" name="sportic_active_tab" value="<?php echo esc_attr($activeTab); ?>"><input type="hidden" name="sportic_active_subday" value="<?php echo esc_attr($diaSeleccionatKey); ?>"><input type="hidden" name="selected_date" value="<?php echo esc_attr($data_seleccionada); ?>"><input type="hidden" name="cal_year" value="<?php echo intval($any); ?>"><input type="hidden" name="cal_month" value="<?php echo intval($mes); ?>">
-								<input type="hidden" name="lloc" value="<?php echo esc_attr($lloc_actiu_slug); ?>">
-								<div style="text-align:center; margin-top:25px;"><button type="submit" name="apply_template" class="sportic-action-btn-save" style="width: 100%;"><span class="dashicons dashicons-yes-alt"></span>APLICAR PLANTILLA</button></div>
-							</form>
-							<?php
+	
+						echo '<div class="sportic-lloc-display-wrapper">';
+							echo '<span class="dashicons dashicons-location-alt"></span>';
+							echo '<span class="sportic-lloc-display-name">' . esc_html($lloc_actiu_nom) . '</span>';
+						echo '</div>';
+					echo '</div>'; 
+	
+					echo '<div class="sportic-actions-wrapper">';
+						?>
+						<form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="undo-redo-form">
+							<input type="hidden" name="action" value="sportic_undo_change">
+							<?php wp_nonce_field( 'sportic_undo_action', 'sportic_undo_nonce' ); ?>
+							<input type="hidden" name="sportic_active_tab"    value="<?php echo esc_attr($activeTab); ?>">
+							<input type="hidden" name="sportic_active_subday" value="<?php echo esc_attr($diaSeleccionatKey); ?>">
+							<input type="hidden" name="selected_date"         value="<?php echo esc_attr($data_seleccionada); ?>">
+							<input type="hidden" name="cal_year"              value="<?php echo intval($any); ?>">
+							<input type="hidden" name="cal_month"             value="<?php echo intval($mes); ?>">
+							<input type="hidden" name="lloc"                  value="<?php echo esc_attr($lloc_actiu_slug); ?>">
+							<button type="submit" class="sportic-action-btn-icon" title="Desfer">
+								<img src="<?php echo esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-undo.png'); ?>" alt="Desfer" style="width:20px; height:20px;" />
+							</button>
+						</form>
+						<form method="POST" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="undo-redo-form">
+							<input type="hidden" name="action" value="sportic_redo_change">
+							<?php wp_nonce_field( 'sportic_redo_action', 'sportic_redo_nonce' ); ?>
+							<input type="hidden" name="sportic_active_tab"    value="<?php echo esc_attr($activeTab); ?>">
+							<input type="hidden" name="sportic_active_subday" value="<?php echo esc_attr($diaSeleccionatKey); ?>">
+							<input type="hidden" name="selected_date"         value="<?php echo esc_attr($data_seleccionada); ?>">
+							<input type="hidden" name="cal_year"              value="<?php echo intval($any); ?>">
+							<input type="hidden" name="cal_month"             value="<?php echo intval($mes); ?>">
+							<input type="hidden" name="lloc"                  value="<?php echo esc_attr($lloc_actiu_slug); ?>">
+							<button type="submit" class="sportic-action-btn-icon" title="Refer">
+								<img src="<?php echo esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-redo.png'); ?>" alt="Refer" style="width:20px; height:20px;" />
+							</button>
+						</form>
+						
+						<!-- AFEGIT: BOTÓ MODE ZEN (FULLSCREEN) PER A LA PANTALLA PRINCIPAL -->
+						<button type="button" id="sportic-fullscreen-toggle" class="sportic-action-btn-icon" title="Mode Zen (Pantalla Completa)">
+							<span class="dashicons dashicons-editor-expand" style="line-height: inherit; font-size: 20px;"></span>
+						</button>
+						
+						<?php
+						echo '<button type="submit" class="sportic-action-btn-save" form="sportic-main-form">';
+							echo '<img src="' . esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-save.png') . '" alt="Desar" style="width:18px; height:18px; margin-right: 8px;" />';
+							echo 'DESAR CANVIS';
+						echo '</button>';
+					echo '</div>';
+				echo '</div>';
+	
+				?>
+				<style>
+					body.toplevel_page_sportic-onefile-menu { background-color: #ffffff !important; }
+					.sportic-unfile-admin { background-color: #ffffff; }
+					.sportic-loader { border: 8px solid #e5e7eb; border-top: 8px solid #3b82f6; border-radius: 50%; width: 60px; height: 60px; animation: sportic_spin 1s linear infinite; }
+					@keyframes sportic_spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+					.sportic-main-header { position: sticky; top: 32px; z-index: 999; background: rgba(255, 255, 255, 0.97); padding: 10px 20px; margin: -10px -20px 25px -20px; border-radius: 50px; display: flex; align-items: center; justify-content: space-between; transition: top 0.3s ease; }
+					.sportic-header-left { display: flex; align-items: center; gap: 15px; }
+					.sportic-back-to-llocs { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background-color: #f3f4f6; border-radius: 50%; text-decoration: none; transition: background-color 0.2s; }
+					.sportic-back-to-llocs:hover { background-color: #e5e7eb; }
+					.sportic-back-to-llocs .dashicons { font-size: 24px; color: #4b5563; line-height: 1; }
+					.sportic-logo-wrapper img { height: 56px; width: auto; }
+					.sportic-lloc-display-wrapper { display: flex; align-items: center; gap: 8px; background-color: #f3f4f6; padding: 8px 15px; border-radius: 30px; border: 1px solid #e5e7eb; }
+					.sportic-lloc-display-wrapper .dashicons { color: #6b7280; font-size: 22px; }
+					.sportic-lloc-display-name { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.1em; color: #1f2937; }
+					.sportic-actions-wrapper { display: flex; align-items: center; gap: 12px; }
+					.sportic-action-btn-icon, .sportic-action-btn-save { display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 21px; font-weight: 600; cursor: pointer; transition: background-color 0.2s, box-shadow 0.2s; }
+					.sportic-action-btn-icon { background-color: #4061aa; width: 44px; height: 44px; color: #4b5563; box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); }
+					.sportic-action-btn-icon:hover { background-color: #f3f4f6; }
+					.sportic-action-btn-icon img { vertical-align: middle; }
+					.sportic-action-btn-save { background-color: #4061aa; color: white; padding: 0 20px; height: 44px; font-size: 14px; }
+					.sportic-action-btn-save:hover { background-color: #1d4ed8; }
+					button.sportic-action-btn-icon { width: auto !important; min-width: 0 !important; max-width: none !important; height: 40px !important; border-radius: 9999px !important; padding-left: 0px !important; padding-right: 0px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; line-height: 1 !important; box-sizing: border-box !important; width: 40px !important; }
+					button.sportic-action-btn-icon:hover, button.sportic-action-btn:hover { background-color: #00b2ca !important; }
+					button.sportic-action-btn-icon:hover, button.sportic-action-btn-save:hover, button.sportic-action-btn:hover { background-color: #00b2ca !important; }
+					.top-row { display: grid; grid-template-columns: 50% 1fr; gap: 25px; margin-bottom: 25px; align-items: start; }
+					a.nav-tab.sportic-folder-tab.sportic-main-tab { margin-left: -10px !important; margin-right: 15px !important;}
+					button.sportic-folder-tab.sportic-secondary-tab { margin-left: -10px !important; margin-right: 10px !important }
+					.sportic-column { display: flex; flex-direction: column; }
+					.sportic-column-header { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; padding-left: 10px; }
+					.sportic-column-header h2 { font-size: 1.3em; margin: 0; font-weight: 600; color: #374151; }
+					.sportic-column-header img { width: 20px; height: 20px; }
+					.sportic-content-box { flex-grow: 1; display: flex; flex-direction: column; background: #fff; border-radius: 30px; padding: 25px; box-shadow: 0 4px 31px 0 rgba(0,0,0,.15), 0 2px 4px -2px rgba(0,0,0,.07); }
+					.top-card { padding: 0; box-shadow: none; background: transparent; border-radius: 0; }
+					.top-card .sportic-folder-tabs-wrapper { position: relative; padding-left: 10px; }
+					.sportic-folder-tab.sportic-main-tab:not(.nav-tab-active):hover { background-color: #eaeef6 !important; z-index: 11; }
+					.top-card .sportic-folder-tab { display: inline-flex; align-items: center; background-color: #f3f4f6; color: #4b5563; padding: 15px 25px; border: 1px solid #e5e7eb; border-top-left-radius: 15px; border-top-right-radius: 15px; font-weight: 600; cursor: pointer; position: relative; margin-left: 4px; margin-bottom: 0; z-index: 1; font-size: 1.1em; }
+					.top-card .sportic-folder-tab.active { background-color: #eaeef6; color: #111827; border-bottom-color: #eaeef6; z-index: 3; }
+					.top-card .sportic-folder-content { display: grid; position: relative; border: 1px solid #e5e7eb; border-radius: 30px; padding: 21px 25px; margin-top: -12px; border-top-left-radius: 0px; z-index: 2; background: #eaeef6; }
+					.top-card .sportic-folder-content .content-pane { grid-column: 1; grid-row: 1; opacity: 0; pointer-events: none; transition: opacity 0.15s ease-in-out; }
+					.top-card .sportic-folder-content .content-pane.active { opacity: 1; pointer-events: auto; }
+					.sportic-action-btn-save span.dashicons { color: #ffffff !important; margin-right: 7px;; }
+					.sportic-action-btn-icon span.dashicons { color: #ffffff !important; font-size: 20px; width: 20px; height: 20px; line-height: 20px; }
+				</style>
+				<?php
+	
+				echo '<div class="top-row">';
+					echo '<div class="sportic-column">';
+						echo '<div class="sportic-column-header">';
+							echo '<img src="' . esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-calendar.png') . '" alt="Calendari" />';
+							echo '<h2>CALENDARI</h2>';
+						echo '</div>';
+						echo '<div class="sportic-content-box sportic-calendari">';
+							sportic_unfile_mostrar_calendari();
 						echo '</div>';
 					echo '</div>';
+					echo '<div class="sportic-column top-card">';
+						echo '<div class="sportic-folder-tabs-wrapper">';
+							echo '<button id="tab-llegenda" class="sportic-folder-tab active">';
+								echo '<img src="' . esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-legend.png') . '" alt="Llegenda" style="width:20px; height:20px; margin-right: 8px;" />';
+								echo 'LLEGENDA</button>';
+							echo '<button id="tab-plant" class="sportic-folder-tab">';
+								echo '<img src="' . esc_url(plugin_dir_url(__FILE__) . 'imatges/icon-templates.png') . '" alt="Plantilles" style="width:20px; height:20px; margin-right: 8px;" />';
+								echo 'PLANTILLES</button>';
+						echo '</div>';
+						echo '<div class="sportic-content-box sportic-folder-content">';
+							echo '<div id="carpeta-llegenda" class="content-pane active">';
+								echo sportic_unfile_mostrar_llegenda();
+							echo '</div>';
+							echo '<div id="carpeta-plantilles" class="content-pane">';
+								?>
+								<form id="form-aplicar-plantilla" method="post" action="<?php echo esc_url( admin_url('admin-post.php') ); ?>">
+									<input type="hidden" name="action" value="sportic_unfile_aplicar_plantilla" />
+									<?php wp_nonce_field( 'sportic_apply_template_action', 'sportic_apply_template_nonce' ); ?>
+									<div style="margin-bottom:10px;"><label for="template_option" style="display:block; margin-bottom:5px; font-weight: 600;">Plantilla:</label><select name="template_option" id="template_option" required style="width: 100%;"><?php
+									$plantilles = sportic_unfile_get_plantilles($lloc_actiu_slug);
+									if ( ! is_array( $plantilles ) ) $plantilles = array();
+									echo '<option value="">-- Escull una plantilla --</option>';
+									$plantillesDia = array(); $plantillesSetmana = array(); $plantillesSingle = array();
+									foreach ( $plantilles as $tmplId => $tmpl ) { if ( ! is_array($tmpl) ) continue; if ( isset( $tmpl['type'] ) ) { if ( $tmpl['type'] === 'week' ) $plantillesSetmana[ $tmplId ] = $tmpl; elseif ( $tmpl['type'] === 'single' ) $plantillesSingle[ $tmplId ] = $tmpl; else $plantillesDia[ $tmplId ] = $tmpl; } else $plantillesDia[ $tmplId ] = $tmpl; }
+									if (!empty($plantillesDia)) { echo '<optgroup label="Plantilles Diàries">'; foreach ($plantillesDia as $pid => $pt) echo '<option value="' . esc_attr($pid . '|day') . '">' . esc_html($pt['name']) . '</option>'; echo '</optgroup>'; }
+									if (!empty($plantillesSetmana)) { echo '<optgroup label="Plantilles Setmanals">'; foreach ($plantillesSetmana as $pid => $pt) echo '<option value="' . esc_attr($pid . '|week') . '">' . esc_html($pt['name']) . '</option>'; echo '</optgroup>'; }
+									if (!empty($plantillesSingle)) { echo '<optgroup label="Plantilles Individuals">'; $poolLabelsForOpts = sportic_unfile_get_pool_labels_sorted(); foreach ($plantillesSingle as $pid => $pt) { $poolSlugForOpt = isset($pt['piscina']) ? $pt['piscina'] : 'infantil'; $poolLabelForOpt = isset($poolLabelsForOpts[$poolSlugForOpt]) ? $poolLabelsForOpts[$poolSlugForOpt]['label'] : ucfirst($poolSlugForOpt); echo '<option value="' . esc_attr($pid . '|single|' . $poolSlugForOpt) . '">' . esc_html($pt['name'] . ' (' . $poolLabelForOpt . ')') . '</option>'; } echo '</optgroup>'; }
+									?></select></div>
+									<div style="margin-bottom:10px;"><label for="rang_data_inici" style="display:block; margin-bottom:5px; font-weight: 600;">Data inici:</label><input type="date" id="rang_data_inici" name="rang_data_inici" required style="width: 100%;"/></div>
+									<div style="margin-bottom:10px;"><label for="rang_data_fi" style="display:block; margin-bottom:5px; font-weight: 600;">Data fi:</label><input type="date" id="rang_data_fi" name="rang_data_fi" required style="width: 100%;"/></div>
+									<div style="margin-bottom:10px;"><label style="display:block; margin-bottom:5px; font-weight: 600;">Dies d'aplicació (opcional):</label><div>
+										<input type="checkbox" name="dia_filter[]" value="1" id="dia1_sub"> <label for="dia1_sub">Dl</label> 
+										<input type="checkbox" name="dia_filter[]" value="2" id="dia2_sub"> <label for="dia2_sub">Dt</label> 
+										<input type="checkbox" name="dia_filter[]" value="3" id="dia3_sub"> <label for="dia3_sub">Dc</label> 
+										<input type="checkbox" name="dia_filter[]" value="4" id="dia4_sub"> <label for="dia4_sub">Dj</label> 
+										<input type="checkbox" name="dia_filter[]" value="5" id="dia5_sub"> <label for="dia5_sub">Dv</label> 
+										<input type="checkbox" name="dia_filter[]" value="6" id="dia6_sub"> <label for="dia6_sub">Ds</label> 
+										<input type="checkbox" name="dia_filter[]" value="7" id="dia7_sub"> <label for="dia7_sub">Dg</label>
+									</div></div>
+									<div class="sportic-ignore-lock-wrapper" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee;"><label for="ignore_lock_template"><input type="checkbox" id="ignore_lock_template" name="ignore_lock_template" value="1"> Ignorar bloqueig de cel·les</label></div>
+									<input type="hidden" name="sportic_active_tab" value="<?php echo esc_attr($activeTab); ?>"><input type="hidden" name="sportic_active_subday" value="<?php echo esc_attr($diaSeleccionatKey); ?>"><input type="hidden" name="selected_date" value="<?php echo esc_attr($data_seleccionada); ?>"><input type="hidden" name="cal_year" value="<?php echo intval($any); ?>"><input type="hidden" name="cal_month" value="<?php echo intval($mes); ?>">
+									<input type="hidden" name="lloc" value="<?php echo esc_attr($lloc_actiu_slug); ?>">
+									<div style="text-align:center; margin-top:25px;"><button type="submit" name="apply_template" class="sportic-action-btn-save" style="width: 100%;"><span class="dashicons dashicons-yes-alt"></span>APLICAR PLANTILLA</button></div>
+								</form>
+								<?php
+							echo '</div>';
+						echo '</div>';
+					echo '</div>';
 				echo '</div>';
-			echo '</div>';
 	
-			echo '<form id="sportic-main-form" method="post" action="' . esc_url( admin_url('admin-post.php') ) . '">';
-				wp_nonce_field( 'sportic_save_action', 'sportic_save_nonce' );
-				echo '<input type="hidden" name="sportic_active_tab" id="sportic_active_tab_input" value="' . esc_attr($activeTab) . '" />';
-				echo '<input type="hidden" name="sportic_active_subday" id="sportic_active_subday_input" value="' . esc_attr($diaSeleccionatKey) . '" />';
-				echo '<input type="hidden" name="action" value="sportic_unfile_guardar" />';
-				echo '<input type="hidden" name="sportic_dades_json" id="sportic_dades_json" value="" />';
-				echo '<input type="hidden" id="selected_date_input" name="selected_date" value="' . esc_attr( $data_seleccionada ) . '" />';
-				echo '<input type="hidden" name="cal_year"  value="' . esc_attr( $any ) . '" />';
-				echo '<input type="hidden" name="cal_month" value="' . esc_attr( $mes ) . '" />';
-				echo '<input type="hidden" name="lloc" value="' . esc_attr($lloc_actiu_slug) . '"/>';
-				echo '<h2 class="nav-tab-wrapper sportic-main-tabs-wrapper">';
+				echo '<form id="sportic-main-form" method="post" action="' . esc_url( admin_url('admin-post.php') ) . '">';
+					wp_nonce_field( 'sportic_save_action', 'sportic_save_nonce' );
+					echo '<input type="hidden" name="sportic_active_tab" id="sportic_active_tab_input" value="' . esc_attr($activeTab) . '" />';
+					echo '<input type="hidden" name="sportic_active_subday" id="sportic_active_subday_input" value="' . esc_attr($diaSeleccionatKey) . '" />';
+					echo '<input type="hidden" name="action" value="sportic_unfile_guardar" />';
+					echo '<input type="hidden" name="sportic_dades_json" id="sportic_dades_json" value="" />';
+					echo '<input type="hidden" id="selected_date_input" name="selected_date" value="' . esc_attr( $data_seleccionada ) . '" />';
+					echo '<input type="hidden" name="cal_year"  value="' . esc_attr( $any ) . '" />';
+					echo '<input type="hidden" name="cal_month" value="' . esc_attr( $mes ) . '" />';
+					echo '<input type="hidden" name="lloc" value="' . esc_attr($lloc_actiu_slug) . '"/>';
+					echo '<h2 class="nav-tab-wrapper sportic-main-tabs-wrapper">';
+						if (!empty($etiquetesPiscines)) { 
+							foreach ( $etiquetesPiscines as $slug => $pinfo ) { 
+								$hash = '#' . $slug; 
+								$classeActiva = ($hash === $activeTab) ? 'nav-tab-active' : '';
+								echo '<a href="' . esc_attr( $hash ) . '" class="nav-tab sportic-folder-tab sportic-main-tab ' . $classeActiva . '">' . esc_html( $pinfo['label'] ) . '</a>'; 
+							} 
+						} else {
+							echo '<div class="sportic-no-pavilions-message" style="padding: 20px; text-align: center; background: #fff5f5; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b;">No hi ha pavellons configurats per a aquest lloc. Ves a "Configurar Pavellons" per afegir-ne.</div>';
+						}
+					echo '</h2>';
+					echo '<div class="sportic-main-content-box">';
 					if (!empty($etiquetesPiscines)) { 
 						foreach ( $etiquetesPiscines as $slug => $pinfo ) { 
-							$hash = '#' . $slug; 
-							$classeActiva = ($hash === $activeTab) ? 'nav-tab-active' : '';
-							echo '<a href="' . esc_attr( $hash ) . '" class="nav-tab sportic-folder-tab sportic-main-tab ' . $classeActiva . '">' . esc_html( $pinfo['label'] ) . '</a>'; 
+							$display = ('#' . $slug == $activeTab) ? 'display:block;' : 'display:none;';
+							echo '<div id="' . esc_attr( $slug ) . '" class="sportic-tab-content" style="' . $display . '">'; 
+								$data_piscina_actual = isset( $dades[ $slug ] ) ? $dades[ $slug ] : array(); 
+								sportic_unfile_mostrar_dies( $slug, $data_piscina_actual, $setmanaDates, $diaSeleccionatKey ); 
+							echo '</div>'; 
 						} 
-					} else {
-						echo '<div class="sportic-no-pavilions-message" style="padding: 20px; text-align: center; background: #fff5f5; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b;">No hi ha pavellons configurats per a aquest lloc. Ves a "Configurar Pavellons" per afegir-ne.</div>';
 					}
-				echo '</h2>';
-				echo '<div class="sportic-main-content-box">';
-				if (!empty($etiquetesPiscines)) { 
-					foreach ( $etiquetesPiscines as $slug => $pinfo ) { 
-						$display = ('#' . $slug == $activeTab) ? 'display:block;' : 'display:none;';
-						echo '<div id="' . esc_attr( $slug ) . '" class="sportic-tab-content" style="' . $display . '">'; 
-							$data_piscina_actual = isset( $dades[ $slug ] ) ? $dades[ $slug ] : array(); 
-							sportic_unfile_mostrar_dies( $slug, $data_piscina_actual, $setmanaDates, $diaSeleccionatKey ); 
-						echo '</div>'; 
-					} 
-				}
-				echo '</div>';
-			echo '</form>';
-			sportic_unfile_output_inline_css(); 
-			sportic_unfile_output_inline_js();
-			?>
-			<script>
-			document.addEventListener('DOMContentLoaded', function() {
-				function updateUndoRedoForms() {
-					var activeTabValue = document.getElementById('sportic_active_tab_input')?.value || '';
-					var activeSubdayValue = document.getElementById('sportic_active_subday_input')?.value || '';
-					var selectedDateValue = document.getElementById('selected_date_input')?.value || '';
-					var calYearValue = document.querySelector('form#sportic-main-form input[name="cal_year"]')?.value || '';
-					var calMonthValue = document.querySelector('form#sportic-main-form input[name="cal_month"]')?.value || '';
-					var llocValue = document.querySelector('form#sportic-main-form input[name="lloc"]')?.value || '';
-					document.querySelectorAll('.undo-redo-form').forEach(function(frm){
-						frm.querySelector('input[name="sportic_active_tab"]').value = activeTabValue;
-						frm.querySelector('input[name="sportic_active_subday"]').value = activeSubdayValue;
-						frm.querySelector('input[name="selected_date"]').value = selectedDateValue;
-						frm.querySelector('input[name="cal_year"]').value = calYearValue;
-						frm.querySelector('input[name="cal_month"]').value = calMonthValue;
-						frm.querySelector('input[name="lloc"]').value = llocValue;
-					});
-				}
-				document.querySelectorAll('.nav-tab-wrapper a, .sportic-dies-tabs-nav a').forEach(el => el.addEventListener('click', () => setTimeout(updateUndoRedoForms, 50)));
-				updateUndoRedoForms();
-				var tabPlant = document.getElementById('tab-plant');
-				var tabLlegenda = document.getElementById('tab-llegenda');
-				var divPlant = document.getElementById('carpeta-plantilles');
-				var divLlegenda = document.getElementById('carpeta-llegenda');
-				if(tabPlant && divPlant && tabLlegenda && divLlegenda){
-					tabPlant.addEventListener('click', function(){
-						tabPlant.classList.add('active');
-						tabLlegenda.classList.remove('active');
-						divPlant.classList.add('active');
-						divLlegenda.classList.remove('active');
-					});
-					tabLlegenda.addEventListener('click', function(){
-						tabLlegenda.classList.add('active');
-						tabPlant.classList.remove('active');
-						divLlegenda.classList.add('active');
-						divPlant.classList.remove('active');
-					});
-				}
-				const calTitleClickable = document.getElementById('sportic-cal-title-clickable');
-				const datePickerPopup = document.getElementById('sportic-date-picker-popup');
-				if (calTitleClickable && datePickerPopup) {
-					const yearInputPopup = datePickerPopup.querySelector('#year-input-popup'), prevYearBtn = datePickerPopup.querySelector('#prev-year-popup'), nextYearBtn = datePickerPopup.querySelector('#next-year-popup'), monthGridInPopup = datePickerPopup.querySelector('.month-grid'), applyBtnPopup = datePickerPopup.querySelector('#apply-date-popup'), cancelBtnPopup = datePickerPopup.querySelector('#cancel-date-popup');
-					const initialYearFromPHP = <?php echo isset($any) ? $any : date('Y'); ?>; const initialMonthFromPHP = <?php echo isset($mes) ? $mes : date('n'); ?>; const baseUrlForCalendar = '<?php echo esc_js(admin_url( 'admin.php?page=sportic-onefile-menu' )); ?>';
-					let currentPopupYear = initialYearFromPHP; let currentPopupMonth = initialMonthFromPHP;
-					function initPopupValues() { yearInputPopup.value = currentPopupYear; monthGridInPopup.querySelectorAll('button').forEach(btn => { btn.classList.remove('selected'); if (parseInt(btn.dataset.month) === currentPopupMonth) btn.classList.add('selected'); }); }
-					calTitleClickable.addEventListener('click', function(event) { event.stopPropagation(); const urlParams = new URLSearchParams(window.location.search); currentPopupYear = parseInt(urlParams.get('cal_year')) || initialYearFromPHP; currentPopupMonth = parseInt(urlParams.get('cal_month')) || initialMonthFromPHP; initPopupValues(); datePickerPopup.style.display = datePickerPopup.style.display === 'block' ? 'none' : 'block'; if (datePickerPopup.style.display === 'block') { const popupRect = datePickerPopup.getBoundingClientRect(); if (popupRect.right > window.innerWidth) { datePickerPopup.style.left = 'auto'; datePickerPopup.style.right = '0px'; datePickerPopup.style.transform = 'translateX(0)'; } else if (popupRect.left < 0) { datePickerPopup.style.left = '0px'; datePickerPopup.style.right = 'auto'; datePickerPopup.style.transform = 'translateX(0)'; } else { datePickerPopup.style.left = '50%'; datePickerPopup.style.right = 'auto'; datePickerPopup.style.transform = 'translateX(-50%)'; } } });
-					document.addEventListener('click', function(event) { if (datePickerPopup.style.display === 'block' && !datePickerPopup.contains(event.target) && !calTitleClickable.contains(event.target)) datePickerPopup.style.display = 'none'; });
-					prevYearBtn.addEventListener('click', () => { currentPopupYear--; yearInputPopup.value = currentPopupYear; });
-					nextYearBtn.addEventListener('click', () => { currentPopupYear++; yearInputPopup.value = currentPopupYear; });
-					yearInputPopup.addEventListener('input', () => { let yrVal = parseInt(yearInputPopup.value); if (!isNaN(yrVal) && yrVal >= 1900 && yrVal <= 2100) currentPopupYear = yrVal; else yearInputPopup.value = currentPopupYear; });
-					monthGridInPopup.querySelectorAll('button').forEach(btn => { btn.addEventListener('click', () => { currentPopupMonth = parseInt(btn.dataset.month); monthGridInPopup.querySelectorAll('button').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); }); });
-					cancelBtnPopup.addEventListener('click', () => { datePickerPopup.style.display = 'none'; });
-					applyBtnPopup.addEventListener('click', () => { const newYear = parseInt(yearInputPopup.value); const newMonth = currentPopupMonth; if (isNaN(newYear) || newYear < 1900 || newYear > 2100) { alert("Si us plau, introdueix un any vàlid (1900-2100)."); yearInputPopup.focus(); return; } const newSelectedDate = `${newYear}-${String(newMonth).padStart(2, '0')}-01`; let newUrl = `${baseUrlForCalendar}&cal_year=${newYear}&cal_month=${newMonth}&selected_date=${newSelectedDate}`; const currentUrlParams = new URLSearchParams(window.location.search); const activeTab = currentUrlParams.get('active_tab') || (document.getElementById('sportic_active_tab_input') ? document.getElementById('sportic_active_tab_input').value : ''); const activeSubday = currentUrlParams.get('active_subday') || (document.getElementById('sportic_active_subday_input') ? document.getElementById('sportic_active_subday_input').value : '');
-					const activeLloc = '<?php echo esc_js($lloc_actiu_slug); ?>'; if (activeLloc) newUrl += `&lloc=${encodeURIComponent(activeLloc)}`;
-					if (activeTab) newUrl += `&active_tab=${encodeURIComponent(activeTab)}`; if (activeSubday) newUrl += `&active_subday=${encodeURIComponent(activeSubday)}`; var sporticLoaderOverlay = document.getElementById('sportic_loader_overlay_admin'); if (sporticLoaderOverlay) { window.SPORTIC_LOADER_MSG = 'Carregant calendari...'; sportic_show_loader(window.SPORTIC_LOADER_MSG); } window.location.href = newUrl; });
-					initPopupValues();
-				}
-			});
-			</script>
-			<?php
-			echo '</div>'; 
-			?>
-			<script>
-			function sportic_show_loader(msg){ var overlay = document.getElementById('sportic_loader_overlay_admin'); if(!overlay) return; var txt = overlay.querySelector('.sportic-loader-text'); if(txt) txt.textContent = msg || 'Carregant...'; overlay.style.display = 'block'; }
-			function sportic_hide_loader(){ var overlay = document.getElementById('sportic_loader_overlay_admin'); if(overlay) overlay.style.display = 'none'; }
-			window.SPORTIC_LOADER_MSG = 'Carregant...';
-			document.addEventListener('DOMContentLoaded', function(){
-				var mainForm = document.getElementById('sportic-main-form'); if(mainForm) mainForm.addEventListener('submit', function(){ window.SPORTIC_LOADER_MSG = 'Desant canvis...'; sportic_show_loader(window.SPORTIC_LOADER_MSG); });
-				var formPlantilla = document.getElementById('form-aplicar-plantilla'); if(formPlantilla) formPlantilla.addEventListener('submit', function(){ window.SPORTIC_LOADER_MSG = 'Aplicant plantilla...'; sportic_show_loader(window.SPORTIC_LOADER_MSG); });
-				document.querySelectorAll('.undo-redo-form').forEach(function(frm){ frm.addEventListener('submit', function(){ var actionField = frm.querySelector('input[name="action"]'); if(!actionField) return; if(actionField.value === 'sportic_undo_change') window.SPORTIC_LOADER_MSG = 'Desfent canvis...'; else if(actionField.value === 'sportic_redo_change') window.SPORTIC_LOADER_MSG = 'Refent canvis...'; else window.SPORTIC_LOADER_MSG = 'Processant...'; sportic_show_loader(window.SPORTIC_LOADER_MSG); }); });
-				document.querySelectorAll('.sportic-calendari a').forEach(function(link){ link.addEventListener('click', function(e){ 
-					e.preventDefault(); 
-					const newUrl = new URL(link.href);
-					const activeLloc = '<?php echo esc_js($lloc_actiu_slug); ?>';
-					if (activeLloc) {
-						newUrl.searchParams.set('lloc', activeLloc);
+					echo '</div>';
+				echo '</form>';
+				
+				echo '</div>'; 
+	
+				// ================================================================
+				// MODAL PER SELECCIÓ MIXTA
+				// ================================================================
+				?>
+				<div id="sportic-mix-modal" class="sportic-mix-modal-overlay">
+					<div class="sportic-mix-modal-content">
+						<div class="modal-header">
+							<h3>Selecciona Equips per a la Sessió Mixta</h3>
+							<button id="sportic-mix-close" class="modal-close-btn">&times;</button>
+						</div>
+						<div class="modal-body">
+							<p>Marca tots els equips que participaran en aquesta franja horària. Has de seleccionar-ne almenys dos.</p>
+							<div class="modal-search-wrapper">
+								<input type="text" id="sportic-mix-search" placeholder="Cerca un equip...">
+							</div>
+							<ul id="sportic-mix-team-list" class="modal-team-list">
+								<!-- JS -->
+							</ul>
+						</div>
+						<div class="modal-footer">
+							<button id="sportic-mix-cancel" class="button">Cancel·lar</button>
+							<button id="sportic-mix-apply" class="button button-primary">Aplicar Sessió Mixta</button>
+						</div>
+					</div>
+				</div>
+				<?php
+	
+				sportic_unfile_output_inline_css(); 
+				sportic_unfile_output_inline_js();
+				?>
+				<script>
+				document.addEventListener('DOMContentLoaded', function() {
+					function updateUndoRedoForms() {
+						var activeTabValue = document.getElementById('sportic_active_tab_input')?.value || '';
+						var activeSubdayValue = document.getElementById('sportic_active_subday_input')?.value || '';
+						var selectedDateValue = document.getElementById('selected_date_input')?.value || '';
+						var calYearValue = document.querySelector('form#sportic-main-form input[name="cal_year"]')?.value || '';
+						var calMonthValue = document.querySelector('form#sportic-main-form input[name="cal_month"]')?.value || '';
+						var llocValue = document.querySelector('form#sportic-main-form input[name="lloc"]')?.value || '';
+						document.querySelectorAll('.undo-redo-form').forEach(function(frm){
+							frm.querySelector('input[name="sportic_active_tab"]').value = activeTabValue;
+							frm.querySelector('input[name="sportic_active_subday"]').value = activeSubdayValue;
+							frm.querySelector('input[name="selected_date"]').value = selectedDateValue;
+							frm.querySelector('input[name="cal_year"]').value = calYearValue;
+							frm.querySelector('input[name="cal_month"]').value = calMonthValue;
+							frm.querySelector('input[name="lloc"]').value = llocValue;
+						});
 					}
-					window.SPORTIC_LOADER_MSG = 'Carregant calendari...'; 
-					sportic_show_loader(window.SPORTIC_LOADER_MSG); 
-					window.location.href = newUrl.toString();
-				}); });
-				window.addEventListener('beforeunload', function(event){ let isInternalSubmit = false; if (event.target?.activeElement?.form) { const formId = event.target.activeElement.form.id; if (formId === 'sportic-main-form' || formId === 'form-aplicar-plantilla' || event.target.activeElement.form.classList.contains('undo-redo-form')) isInternalSubmit = true; } let isCalendarLink = false; if (event.target?.activeElement?.closest('.sportic-calendari')) isCalendarLink = true; if (isInternalSubmit || isCalendarLink) sportic_show_loader(window.SPORTIC_LOADER_MSG || 'Carregant...'); });
-				setTimeout(() => { sportic_hide_loader(); const mainContainer = document.getElementById('sportic_main_container'); if (mainContainer) mainContainer.style.display = 'block'; }, 200);
-			});
-			</script>
-			<?php
+					document.querySelectorAll('.nav-tab-wrapper a, .sportic-dies-tabs-nav a').forEach(el => el.addEventListener('click', () => setTimeout(updateUndoRedoForms, 50)));
+					updateUndoRedoForms();
+					var tabPlant = document.getElementById('tab-plant');
+					var tabLlegenda = document.getElementById('tab-llegenda');
+					var divPlant = document.getElementById('carpeta-plantilles');
+					var divLlegenda = document.getElementById('carpeta-llegenda');
+					if(tabPlant && divPlant && tabLlegenda && divLlegenda){
+						tabPlant.addEventListener('click', function(){
+							tabPlant.classList.add('active');
+							tabLlegenda.classList.remove('active');
+							divPlant.classList.add('active');
+							divLlegenda.classList.remove('active');
+						});
+						tabLlegenda.addEventListener('click', function(){
+							tabLlegenda.classList.add('active');
+							tabPlant.classList.remove('active');
+							divLlegenda.classList.add('active');
+							divPlant.classList.remove('active');
+						});
+					}
+					const calTitleClickable = document.getElementById('sportic-cal-title-clickable');
+					const datePickerPopup = document.getElementById('sportic-date-picker-popup');
+					if (calTitleClickable && datePickerPopup) {
+						const yearInputPopup = datePickerPopup.querySelector('#year-input-popup'), prevYearBtn = datePickerPopup.querySelector('#prev-year-popup'), nextYearBtn = datePickerPopup.querySelector('#next-year-popup'), monthGridInPopup = datePickerPopup.querySelector('.month-grid'), applyBtnPopup = datePickerPopup.querySelector('#apply-date-popup'), cancelBtnPopup = datePickerPopup.querySelector('#cancel-date-popup');
+						const initialYearFromPHP = <?php echo isset($any) ? $any : date('Y'); ?>; const initialMonthFromPHP = <?php echo isset($mes) ? $mes : date('n'); ?>; const baseUrlForCalendar = '<?php echo esc_js(admin_url( 'admin.php?page=sportic-onefile-menu' )); ?>';
+						let currentPopupYear = initialYearFromPHP; let currentPopupMonth = initialMonthFromPHP;
+						function initPopupValues() { yearInputPopup.value = currentPopupYear; monthGridInPopup.querySelectorAll('button').forEach(btn => { btn.classList.remove('selected'); if (parseInt(btn.dataset.month) === currentPopupMonth) btn.classList.add('selected'); }); }
+						calTitleClickable.addEventListener('click', function(event) { event.stopPropagation(); const urlParams = new URLSearchParams(window.location.search); currentPopupYear = parseInt(urlParams.get('cal_year')) || initialYearFromPHP; currentPopupMonth = parseInt(urlParams.get('cal_month')) || initialMonthFromPHP; initPopupValues(); datePickerPopup.style.display = datePickerPopup.style.display === 'block' ? 'none' : 'block'; if (datePickerPopup.style.display === 'block') { const popupRect = datePickerPopup.getBoundingClientRect(); if (popupRect.right > window.innerWidth) { datePickerPopup.style.left = 'auto'; datePickerPopup.style.right = '0px'; datePickerPopup.style.transform = 'translateX(0)'; } else if (popupRect.left < 0) { datePickerPopup.style.left = '0px'; datePickerPopup.style.right = 'auto'; datePickerPopup.style.transform = 'translateX(0)'; } else { datePickerPopup.style.left = '50%'; datePickerPopup.style.right = 'auto'; datePickerPopup.style.transform = 'translateX(-50%)'; } } });
+						document.addEventListener('click', function(event) { if (datePickerPopup.style.display === 'block' && !datePickerPopup.contains(event.target) && !calTitleClickable.contains(event.target)) datePickerPopup.style.display = 'none'; });
+						prevYearBtn.addEventListener('click', () => { currentPopupYear--; yearInputPopup.value = currentPopupYear; });
+						nextYearBtn.addEventListener('click', () => { currentPopupYear++; yearInputPopup.value = currentPopupYear; });
+						yearInputPopup.addEventListener('input', () => { let yrVal = parseInt(yearInputPopup.value); if (!isNaN(yrVal) && yrVal >= 1900 && yrVal <= 2100) currentPopupYear = yrVal; else yearInputPopup.value = currentPopupYear; });
+						monthGridInPopup.querySelectorAll('button').forEach(btn => { btn.addEventListener('click', () => { currentPopupMonth = parseInt(btn.dataset.month); monthGridInPopup.querySelectorAll('button').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); }); });
+						cancelBtnPopup.addEventListener('click', () => { datePickerPopup.style.display = 'none'; });
+						applyBtnPopup.addEventListener('click', () => { const newYear = parseInt(yearInputPopup.value); const newMonth = currentPopupMonth; if (isNaN(newYear) || newYear < 1900 || newYear > 2100) { alert("Si us plau, introdueix un any vàlid (1900-2100)."); yearInputPopup.focus(); return; } const newSelectedDate = `${newYear}-${String(newMonth).padStart(2, '0')}-01`; let newUrl = `${baseUrlForCalendar}&cal_year=${newYear}&cal_month=${newMonth}&selected_date=${newSelectedDate}`; const currentUrlParams = new URLSearchParams(window.location.search); const activeTab = currentUrlParams.get('active_tab') || (document.getElementById('sportic_active_tab_input') ? document.getElementById('sportic_active_tab_input').value : ''); const activeSubday = currentUrlParams.get('active_subday') || (document.getElementById('sportic_active_subday_input') ? document.getElementById('sportic_active_subday_input').value : '');
+						const activeLloc = '<?php echo esc_js($lloc_actiu_slug); ?>'; if (activeLloc) newUrl += `&lloc=${encodeURIComponent(activeLloc)}`;
+						if (activeTab) newUrl += `&active_tab=${encodeURIComponent(activeTab)}`; if (activeSubday) newUrl += `&active_subday=${encodeURIComponent(activeSubday)}`; var sporticLoaderOverlay = document.getElementById('sportic_loader_overlay_admin'); if (sporticLoaderOverlay) { window.SPORTIC_LOADER_MSG = 'Carregant calendari...'; sportic_show_loader(window.SPORTIC_LOADER_MSG); } window.location.href = newUrl; });
+						initPopupValues();
+					}
+				});
+				</script>
+				<script>
+				function sportic_show_loader(msg){ var overlay = document.getElementById('sportic_loader_overlay_admin'); if(!overlay) return; var txt = overlay.querySelector('.sportic-loader-text'); if(txt) txt.textContent = msg || 'Carregant...'; overlay.style.display = 'block'; }
+				function sportic_hide_loader(){ var overlay = document.getElementById('sportic_loader_overlay_admin'); if(overlay) overlay.style.display = 'none'; }
+				window.SPORTIC_LOADER_MSG = 'Carregant...';
+				document.addEventListener('DOMContentLoaded', function(){
+					var mainForm = document.getElementById('sportic-main-form'); if(mainForm) mainForm.addEventListener('submit', function(){ window.SPORTIC_LOADER_MSG = 'Desant canvis...'; sportic_show_loader(window.SPORTIC_LOADER_MSG); });
+					var formPlantilla = document.getElementById('form-aplicar-plantilla'); if(formPlantilla) formPlantilla.addEventListener('submit', function(){ window.SPORTIC_LOADER_MSG = 'Aplicant plantilla...'; sportic_show_loader(window.SPORTIC_LOADER_MSG); });
+					document.querySelectorAll('.undo-redo-form').forEach(function(frm){ frm.addEventListener('submit', function(){ var actionField = frm.querySelector('input[name="action"]'); if(!actionField) return; if(actionField.value === 'sportic_undo_change') window.SPORTIC_LOADER_MSG = 'Desfent canvis...'; else if(actionField.value === 'sportic_redo_change') window.SPORTIC_LOADER_MSG = 'Refent canvis...'; else window.SPORTIC_LOADER_MSG = 'Processant...'; sportic_show_loader(window.SPORTIC_LOADER_MSG); }); });
+					document.querySelectorAll('.sportic-calendari a').forEach(function(link){ link.addEventListener('click', function(e){ 
+						e.preventDefault(); 
+						const newUrl = new URL(link.href);
+						const activeLloc = '<?php echo esc_js($lloc_actiu_slug); ?>';
+						if (activeLloc) {
+							newUrl.searchParams.set('lloc', activeLloc);
+						}
+						window.SPORTIC_LOADER_MSG = 'Carregant calendari...'; 
+						sportic_show_loader(window.SPORTIC_LOADER_MSG); 
+						window.location.href = newUrl.toString();
+					}); });
+					window.addEventListener('beforeunload', function(event){ let isInternalSubmit = false; if (event.target?.activeElement?.form) { const formId = event.target.activeElement.form.id; if (formId === 'sportic-main-form' || formId === 'form-aplicar-plantilla' || event.target.activeElement.form.classList.contains('undo-redo-form')) isInternalSubmit = true; } let isCalendarLink = false; if (event.target?.activeElement?.closest('.sportic-calendari')) isCalendarLink = true; if (isInternalSubmit || isCalendarLink) sportic_show_loader(window.SPORTIC_LOADER_MSG || 'Carregant...'); });
+					setTimeout(() => { sportic_hide_loader(); const mainContainer = document.getElementById('sportic_main_container'); if (mainContainer) mainContainer.style.display = 'block'; }, 200);
+				});
+				</script>
+				<?php
+			}
 		}
 	
 		if ( ! current_user_can( 'manage_options' ) ) {
@@ -3331,13 +4649,22 @@ function sportic_unfile_mostrar_pagina() {
 	
 		$lloc_seleccionat = isset($_GET['lloc']) ? sanitize_key($_GET['lloc']) : '';
 	
+		if (empty($lloc_seleccionat) && function_exists('sportllocs_get_llocs')) {
+			$tots_els_llocs = sportllocs_get_llocs();
+			if (count($tots_els_llocs) === 1) {
+				$lloc_seleccionat = key($tots_els_llocs);
+				$_GET['lloc'] = $lloc_seleccionat;
+			}
+		}
+	
 		if ( ! empty($lloc_seleccionat) ) {
 			sportic_render_schedule_view();
 		} else {
 			sportic_render_lloc_selector_view();
 		}
 	}
-   /**
+																						
+	/**
 	* GUARDAR LES DADES: processament del formulari (via JSON)
 	*/
 	add_action( 'admin_post_sportic_unfile_guardar', 'sportic_unfile_guardar_handler' );
@@ -3385,7 +4712,26 @@ function sportic_unfile_guardar_handler() {
 								
 								$valorBase = preg_replace('/^[@!]/', '', $valRaw);
 	
-								if (!in_array($valorBase, $valid_descriptions, true)) {
+								$isValid = false;
+								if (strpos($valorBase, 'MIX:') === 0) {
+									$teams = explode('|', substr($valorBase, 4));
+									$allTeamsValid = true;
+									if (count($teams) < 2) {
+										$allTeamsValid = false;
+									} else {
+										foreach ($teams as $team) {
+											if (!in_array(trim($team), $valid_descriptions, true)) {
+												$allTeamsValid = false;
+												break;
+											}
+										}
+									}
+									$isValid = $allTeamsValid;
+								} else {
+									$isValid = in_array($valorBase, $valid_descriptions, true);
+								}
+	
+								if (!$isValid) {
 									$valorBase = 'l';
 								}
 	
@@ -3433,6 +4779,7 @@ function sportic_unfile_guardar_handler() {
 		wp_redirect($redirect_url);
 		exit;
 	}
+		
 	/**
 	 * ============================================================================
 	 * NOVA FUNCIÓ OPTIMITZADA PER CARREGAR DADES PER A UN SOL DIA I PISCINA
@@ -3442,54 +4789,103 @@ function sportic_unfile_guardar_handler() {
 	 * ============================================================================
 	 */
 function sportic_carregar_dades_per_dia_i_piscina($piscina_slug, $dia_str) {
-		   global $wpdb;
-	   
-		   // 1. Clau única per a la memòria cau (transient)
-		   $transient_key = 'sportic_csv_data_' . $piscina_slug . '_' . $dia_str;
-		   $cached_data = get_transient($transient_key);
-	   
-		   if ($cached_data !== false && is_array($cached_data)) {
-			   return $cached_data;
-		   }
-	   
-		   // --- Si no hi ha dades a la cau, les calculem ---
-	   
-		   $t_prog = $wpdb->prefix . 'sportic_programacio';
-		   $t_lock = defined('SPORTIC_LOCK_TABLE') ? $wpdb->prefix . SPORTIC_LOCK_TABLE : $wpdb->prefix . 'sportic_bloqueig';
-		   
-		   // 2. Obtenim la programació base només per a aquest dia i piscina
-		   $hores_programacio = [];
-		   $row_prog = $wpdb->get_row($wpdb->prepare("SELECT hores_serial FROM $t_prog WHERE piscina_slug = %s AND dia_data = %s", $piscina_slug, $dia_str), ARRAY_A);
-		   if ($row_prog && !empty($row_prog['hores_serial'])) {
-			   $hores_programacio = @maybe_unserialize($row_prog['hores_serial']);
-		   }
-		   
-		   if (!is_array($hores_programacio) || empty($hores_programacio)) {
-			   $hores_programacio = sportic_unfile_crear_programacio_default($piscina_slug);
-		   }
-	   
-		   // NOTA: Hem eliminat la consulta a la taula d'excepcions i el bucle de recurrents.
-	   
-		   // 4. Obtenim els bloquejos manuals (només per a aquest dia i piscina)
-		   $locks = $wpdb->get_results($wpdb->prepare("SELECT hora, carril_index FROM $t_lock WHERE piscina_slug = %s AND dia_data = %s", $piscina_slug, $dia_str), ARRAY_A);
-		   if ($locks) {
-			   foreach ($locks as $lock) {
-				   $hora = $lock['hora'];
-				   $carril_idx = (int)$lock['carril_index'];
-				   if (isset($hores_programacio[$hora][$carril_idx])) {
-					   $valor_actual = $hores_programacio[$hora][$carril_idx];
-					   if (strpos($valor_actual, '!') !== 0) {
-						   $hores_programacio[$hora][$carril_idx] = '!' . $valor_actual;
-					   }
-				   }
-			   }
-		   }
-	   
-		   // 5. Guardem el resultat a la memòria cau (transient) durant 5 minuts
-		   set_transient($transient_key, $hores_programacio, 5 * MINUTE_IN_SECONDS);
-	   
-		   return $hores_programacio;
-	   }		 
+		 global $wpdb;
+	 
+		 // 1. Clau única per a la memòria cau (transient)
+		 $transient_key = 'sportic_csv_data_' . $piscina_slug . '_' . $dia_str;
+		 $cached_data = get_transient($transient_key);
+	 
+		 if ($cached_data !== false && is_array($cached_data)) {
+			 // Si trobem dades a la memòria cau, les retornem directament
+			 return $cached_data;
+		 }
+	 
+		 // --- Si no hi ha dades a la cau, les calculem ---
+	 
+		 $t_prog = $wpdb->prefix . 'sportic_programacio';
+		 $t_lock = defined('SPORTIC_LOCK_TABLE') ? $wpdb->prefix . SPORTIC_LOCK_TABLE : $wpdb->prefix . 'sportic_bloqueig';
+		 // NOU: Definim la taula d'excepcions
+		 $t_excepcions = $wpdb->prefix . 'sportic_recurrent_exceptions';
+		 
+		 $piscines_config = sportic_unfile_get_pool_labels_sorted();
+	 
+		 // 2. Obtenim la programació base només per a aquest dia i piscina
+		 $hores_programacio = [];
+		 $row_prog = $wpdb->get_row($wpdb->prepare("SELECT hores_serial FROM $t_prog WHERE piscina_slug = %s AND dia_data = %s", $piscina_slug, $dia_str), ARRAY_A);
+		 if ($row_prog && !empty($row_prog['hores_serial'])) {
+			 $hores_programacio = @maybe_unserialize($row_prog['hores_serial']);
+		 }
+		 
+		 if (!is_array($hores_programacio) || empty($hores_programacio)) {
+			 $hores_programacio = sportic_unfile_crear_programacio_default($piscina_slug);
+		 }
+	 
+		 // NOU: Carreguem les excepcions per a aquest dia i piscina
+		 $exceptions_raw_dia = $wpdb->get_results($wpdb->prepare("SELECT hora, carril_index FROM $t_excepcions WHERE piscina_slug = %s AND dia_data = %s", $piscina_slug, $dia_str), ARRAY_A);
+		 $exceptions_map_dia = [];
+		 if ($exceptions_raw_dia) {
+			 foreach ($exceptions_raw_dia as $ex) {
+				 $exceptions_map_dia[$ex['hora']][(int)$ex['carril_index']] = true;
+			 }
+		 }
+	 
+		 // 3. Obtenim esdeveniments recurrents (només per a aquest dia i piscina)
+		 $recurrent_events_map = sportic_get_all_recurrent_events_map();
+		 if (isset($recurrent_events_map[$dia_str][$piscina_slug])) {
+			 $num_carrils_piscina = $piscines_config[$piscina_slug]['lanes'] ?? 0;
+			 foreach ($recurrent_events_map[$dia_str][$piscina_slug] as $hour => $rules_for_hour) {
+				 if (isset($hores_programacio[$hour])) {
+					 foreach ($rules_for_hour as $event_details) {
+						 $lanes_to_apply = $event_details['lanes'];
+						 $new_value = $event_details['letter'];
+						 if (is_null($lanes_to_apply) || empty($lanes_to_apply)) {
+							 foreach ($hores_programacio[$hour] as $c_idx => $c_val) {
+								 // NOU: Comprovem si hi ha una excepció abans d'aplicar
+								 if (isset($exceptions_map_dia[$hour][$c_idx])) {
+									 continue;
+								 }
+								 if (strpos($c_val, '!') !== 0) {
+									 $hores_programacio[$hour][$c_idx] = $new_value;
+								 }
+							 }
+						 } else {
+							 foreach ($lanes_to_apply as $lane_idx_1) {
+								 $lane_idx_0 = $lane_idx_1 - 1;
+								 // NOU: Comprovem si hi ha una excepció abans d'aplicar
+								 if (isset($exceptions_map_dia[$hour][$lane_idx_0])) {
+									 continue;
+								 }
+								 if ($lane_idx_0 >= 0 && $lane_idx_0 < $num_carrils_piscina && isset($hores_programacio[$hour][$lane_idx_0]) && strpos($hores_programacio[$hour][$lane_idx_0], '!') !== 0) {
+									 $hores_programacio[$hour][$lane_idx_0] = $new_value;
+								 }
+							 }
+						 }
+					 }
+				 }
+			 }
+		 }
+	 
+		 // 4. Obtenim els bloquejos manuals (només per a aquest dia i piscina)
+		 $locks = $wpdb->get_results($wpdb->prepare("SELECT hora, carril_index FROM $t_lock WHERE piscina_slug = %s AND dia_data = %s", $piscina_slug, $dia_str), ARRAY_A);
+		 if ($locks) {
+			 foreach ($locks as $lock) {
+				 $hora = $lock['hora'];
+				 $carril_idx = (int)$lock['carril_index'];
+				 if (isset($hores_programacio[$hora][$carril_idx])) {
+					 $valor_actual = $hores_programacio[$hora][$carril_idx];
+					 if (strpos($valor_actual, '!') !== 0) {
+						 $hores_programacio[$hora][$carril_idx] = '!' . $valor_actual;
+					 }
+				 }
+			 }
+		 }
+	 
+		 // 5. Guardem el resultat a la memòria cau (transient) durant 5 minuts
+		 set_transient($transient_key, $hores_programacio, 5 * MINUTE_IN_SECONDS);
+	 
+		 return $hores_programacio;
+	 }
+		 
 	
 	
 
@@ -3502,75 +4898,116 @@ function sportic_carregar_dades_per_dia_i_piscina($piscina_slug, $dia_str) {
  * ============================================================================
  */
 function sportic_carregar_dades_setmana_per_piscines($start_week_day, $end_week_day, $pool_slugs_a_carregar) {
-	   global $wpdb;
-	   $nomTaulaProg = $wpdb->prefix . 'sportic_programacio';
-	   $nomTaulaLock = defined('SPORTIC_LOCK_TABLE') ? ($wpdb->prefix . SPORTIC_LOCK_TABLE) : ($wpdb->prefix . 'sportic_bloqueig');
-   
-	   $configured_pools = sportic_unfile_get_pool_labels_sorted();
-	   $data_setmana_final = array();
-   
-	   // 1. Inicialitzem estructura
-	   $period = new DatePeriod(new DateTime($start_week_day), new DateInterval('P1D'), (new DateTime($end_week_day))->modify('+1 day'));
-	   foreach ($pool_slugs_a_carregar as $slug_p) {
-		   if (!isset($configured_pools[$slug_p])) continue;
-		   $data_setmana_final[$slug_p] = array();
-		   foreach ($period as $day_obj) {
-			   $diaFormatat = $day_obj->format('Y-m-d');
-			   $data_setmana_final[$slug_p][$diaFormatat] = [];
-		   }
-	   }
-   
-	   // 2. Carreguem la programació base
-	   $placeholders = implode(', ', array_fill(0, count($pool_slugs_a_carregar), '%s'));
-	   $sql_params = array_merge([$start_week_day, $end_week_day], $pool_slugs_a_carregar);
-	   $sql_prog = $wpdb->prepare("SELECT piscina_slug, dia_data, hores_serial FROM $nomTaulaProg WHERE dia_data BETWEEN %s AND %s AND piscina_slug IN ($placeholders)", $sql_params);
-	   $rowsProg = $wpdb->get_results($sql_prog, ARRAY_A);
-   
-	   if ($rowsProg) {
-		   foreach ($rowsProg as $fila) {
-			   $slug_db = $fila['piscina_slug'];
-			   $dia_db = $fila['dia_data'];
-			   if (!in_array($slug_db, $pool_slugs_a_carregar)) continue;
-			   $hores = (!empty($fila['hores_serial'])) ? @maybe_unserialize($fila['hores_serial']) : false;
-			   if ($hores === false || !is_array($hores)) {
-				   $hores = sportic_unfile_crear_programacio_default($slug_db);
-			   }
-			   $data_setmana_final[$slug_db][$dia_db] = $hores;
-		   }
-	   }
-   
-	   // 3. Omplim dies buits amb default
-	   foreach ($pool_slugs_a_carregar as $slug_p) {
-		   foreach ($data_setmana_final[$slug_p] as $dia => $hores_data) {
-			   if (empty($hores_data)) {
-				   $data_setmana_final[$slug_p][$dia] = sportic_unfile_crear_programacio_default($slug_p);
-			   }
-		   }
-	   }
-   
-	   // NOTA: Eliminada la consulta d'excepcions i el bucle de recurrents.
-   
-	   // 5. Apliquem bloquejos manuals
-	   $sql_lock = $wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $nomTaulaLock WHERE dia_data BETWEEN %s AND %s AND piscina_slug IN ($placeholders)", $sql_params);
-	   $rowsLock = $wpdb->get_results($sql_lock, ARRAY_A);
-	   if ($rowsLock) {
-		   foreach ($rowsLock as $lockInfo) {
-			   $slug = $lockInfo['piscina_slug'];
-			   $dia = $lockInfo['dia_data'];
-			   $hora = $lockInfo['hora'];
-			   $carril = intval($lockInfo['carril_index']);
-			   if (isset($data_setmana_final[$slug][$dia][$hora][$carril])) {
-				   $valorActual = $data_setmana_final[$slug][$dia][$hora][$carril];
-				   if (strpos($valorActual, '!') !== 0) {
-					   $data_setmana_final[$slug][$dia][$hora][$carril] = '!' . $valorActual;
-				   }
-			   }
-		   }
-	   }
-   
-	   return $data_setmana_final;
-   }
-   	/**
+	 global $wpdb;
+	 $nomTaulaProg = $wpdb->prefix . 'sportic_programacio';
+	 $nomTaulaLock = defined('SPORTIC_LOCK_TABLE') ? ($wpdb->prefix . SPORTIC_LOCK_TABLE) : ($wpdb->prefix . 'sportic_bloqueig');
+	 // NOU: Definim la taula d'excepcions
+	 $nomTaulaExcepcions = $wpdb->prefix . 'sportic_recurrent_exceptions';
+ 
+	 $configured_pools = sportic_unfile_get_pool_labels_sorted();
+	 $data_setmana_final = array();
+ 
+	 // 1. Inicialitzem estructura
+	 $period = new DatePeriod(new DateTime($start_week_day), new DateInterval('P1D'), (new DateTime($end_week_day))->modify('+1 day'));
+	 foreach ($pool_slugs_a_carregar as $slug_p) {
+		 if (!isset($configured_pools[$slug_p])) continue;
+		 $data_setmana_final[$slug_p] = array();
+		 foreach ($period as $day_obj) {
+			 $diaFormatat = $day_obj->format('Y-m-d');
+			 $data_setmana_final[$slug_p][$diaFormatat] = [];
+		 }
+	 }
+ 
+	 // 2. Carreguem la programació base
+	 $placeholders = implode(', ', array_fill(0, count($pool_slugs_a_carregar), '%s'));
+	 $sql_params = array_merge([$start_week_day, $end_week_day], $pool_slugs_a_carregar);
+	 $sql_prog = $wpdb->prepare("SELECT piscina_slug, dia_data, hores_serial FROM $nomTaulaProg WHERE dia_data BETWEEN %s AND %s AND piscina_slug IN ($placeholders)", $sql_params);
+	 $rowsProg = $wpdb->get_results($sql_prog, ARRAY_A);
+ 
+	 if ($rowsProg) {
+		 foreach ($rowsProg as $fila) {
+			 $slug_db = $fila['piscina_slug'];
+			 $dia_db = $fila['dia_data'];
+			 if (!in_array($slug_db, $pool_slugs_a_carregar)) continue;
+			 $hores = (!empty($fila['hores_serial'])) ? @maybe_unserialize($fila['hores_serial']) : false;
+			 if ($hores === false || !is_array($hores)) {
+				 $hores = sportic_unfile_crear_programacio_default($slug_db);
+			 }
+			 $data_setmana_final[$slug_db][$dia_db] = $hores;
+		 }
+	 }
+ 
+	 // 3. Omplim dies buits amb default
+	 foreach ($pool_slugs_a_carregar as $slug_p) {
+		 foreach ($data_setmana_final[$slug_p] as $dia => $hores_data) {
+			 if (empty($hores_data)) {
+				 $data_setmana_final[$slug_p][$dia] = sportic_unfile_crear_programacio_default($slug_p);
+			 }
+		 }
+	 }
+ 
+	 // NOU: Carreguem el mapa d'excepcions per al rang de dates
+	 $sql_excepcions = $wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $nomTaulaExcepcions WHERE dia_data BETWEEN %s AND %s AND piscina_slug IN ($placeholders)", $sql_params);
+	 $exceptions_raw = $wpdb->get_results($sql_excepcions, ARRAY_A);
+	 $exceptions_map = [];
+	 foreach ($exceptions_raw as $ex) {
+		 $exceptions_map[$ex['piscina_slug']][$ex['dia_data']][$ex['hora']][(int)$ex['carril_index']] = true;
+	 }
+ 
+	 // 4. Apliquem Esdeveniments Recurrents (respectant excepcions)
+	 $recurrent_events_map = sportic_get_all_recurrent_events_map();
+	 foreach ($recurrent_events_map as $date_str => $pools_in_date) {
+		 if ($date_str < $start_week_day || $date_str > $end_week_day) continue;
+		 foreach ($pools_in_date as $pool_slug => $hours_in_pool) {
+			 if (!in_array($pool_slug, $pool_slugs_a_carregar)) continue;
+			 $num_carrils_piscina = $configured_pools[$pool_slug]['lanes'] ?? 0;
+			 foreach ($hours_in_pool as $hour => $rules_for_hour) {
+				 if (isset($data_setmana_final[$pool_slug][$date_str][$hour])) {
+					 foreach ($rules_for_hour as $event_details) {
+						 $lanes_to_apply = $event_details['lanes'];
+						 $new_value = $event_details['letter'];
+						 if (is_null($lanes_to_apply) || empty($lanes_to_apply)) {
+							 foreach($data_setmana_final[$pool_slug][$date_str][$hour] as $c_idx => $c_val) {
+								 if (isset($exceptions_map[$pool_slug][$date_str][$hour][$c_idx])) continue; // Comprovem excepció
+								 if (strpos($c_val, '!') !== 0) $data_setmana_final[$pool_slug][$date_str][$hour][$c_idx] = $new_value;
+							 }
+						 } else {
+							 foreach ($lanes_to_apply as $lane_idx_1) {
+								 $lane_idx_0 = $lane_idx_1 - 1;
+								 if (isset($exceptions_map[$pool_slug][$date_str][$hour][$lane_idx_0])) continue; // Comprovem excepció
+								 if ($lane_idx_0 >= 0 && $lane_idx_0 < $num_carrils_piscina && strpos($data_setmana_final[$pool_slug][$date_str][$hour][$lane_idx_0], '!') !== 0) {
+									 $data_setmana_final[$pool_slug][$date_str][$hour][$lane_idx_0] = $new_value;
+								 }
+							 }
+						 }
+					 }
+				 }
+			 }
+		 }
+	 }
+ 
+	 // 5. Apliquem bloquejos manuals
+	 $sql_lock = $wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $nomTaulaLock WHERE dia_data BETWEEN %s AND %s AND piscina_slug IN ($placeholders)", $sql_params);
+	 $rowsLock = $wpdb->get_results($sql_lock, ARRAY_A);
+	 if ($rowsLock) {
+		 foreach ($rowsLock as $lockInfo) {
+			 $slug = $lockInfo['piscina_slug'];
+			 $dia = $lockInfo['dia_data'];
+			 $hora = $lockInfo['hora'];
+			 $carril = intval($lockInfo['carril_index']);
+			 if (isset($data_setmana_final[$slug][$dia][$hora][$carril])) {
+				 $valorActual = $data_setmana_final[$slug][$dia][$hora][$carril];
+				 if (strpos($valorActual, '!') !== 0) {
+					 $data_setmana_final[$slug][$dia][$hora][$carril] = '!' . $valorActual;
+				 }
+			 }
+		 }
+	 }
+ 
+	 return $data_setmana_final;
+ }
+	 
+	/**
 	 * ============================================================================
 	 * ENDPOINT CSV -> action=sportic_unfile_csv (VERSIÓ MODIFICADA I OPTIMITZADA)
 	 * Aquesta versió utilitza la nova funció `sportic_carregar_dades_per_dia_i_piscina`
@@ -3797,54 +5234,9 @@ function sportic_unfile_output_inline_css() {
 			}
 		
 			/* ======================================================================== */
-			/* === INICI DE LA CORRECCIÓ DEFINITIVA: Regles per al modal obert === */
-			/* ======================================================================== */
-			
-			/* Aquesta és la regla clau: quan el modal està obert, el contenidor principal es torna no-interactiu */
-			body.sportic-modal-is-open #sportic_main_container {
-				pointer-events: none; /* Desactiva clics, hover, etc. */
-				filter: blur(4px) brightness(0.8); /* Efecte visual per indicar que està desactivat */
-				transition: filter 0.2s ease-out;
-			}
-			
-			.sportic-mix-modal-overlay {
-				display: none; /* Amagat per defecte */
-				position: fixed;
-				top: 0;
-				left: 0;
-				width: 100%;
-				height: 100%;
-				background-color: rgba(15, 23, 42, 0.4); /* Fons semi-transparent */
-				z-index: 10000;
-				justify-content: center;
-				align-items: center;
-				backdrop-filter: blur(2px); /* Efecte de vidre esmerilat al fons */
-			}
-			.sportic-mix-modal-content {
-				background-color: #f8fafc;
-				border-radius: 12px;
-				width: 90%;
-				max-width: 500px;
-				max-height: 90vh;
-				display: flex;
-				flex-direction: column;
-				box-shadow: 0 10px 30px -5px rgba(0,0,0,0.3);
-				pointer-events: auto; /* Re-activa els events només per al contingut del modal */
-			}
-			.sportic-mix-modal-content .modal-header { padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-			.sportic-mix-modal-content .modal-header h3 { margin: 0; font-size: 1.25rem; }
-			.sportic-mix-modal-content .modal-close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; }
-			.sportic-mix-modal-content .modal-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; }
-			.sportic-mix-modal-content .modal-body p { margin: 0; }
-			.sportic-mix-modal-content .modal-search-wrapper input { width: 100%; box-sizing: border-box; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 8px; }
-			.sportic-mix-modal-content .modal-team-list { list-style: none; margin: 0; padding: 0; max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
-			.sportic-mix-modal-content .modal-team-list li label { display: block; padding: 10px 15px; cursor: pointer; }
-			.sportic-mix-modal-content .modal-team-list li:hover { background-color: #f1f5f9; }
-			.sportic-mix-modal-content .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem; background: #fff; border-radius: 0 0 12px 12px; }
-		
-			/* ======================================================================== */
 			/* === ESTILS PER AL MODE PANTALLA COMPLETA (ZEN) === */
 			/* ======================================================================== */
+			/* Quan el body té la classe, amaguem tot el que no sigui el plugin */
 			body.sportic-fullscreen-mode #adminmenumain,
 			body.sportic-fullscreen-mode #wpadminbar,
 			body.sportic-fullscreen-mode #wpfooter,
@@ -3868,17 +5260,69 @@ function sportic_unfile_output_inline_css() {
 			}
 		
 			/* ======================================================================== */
-			/* === FI DE LA CORRECCIÓ === */
+			/* === ESTILS DEL MODAL MIXT (Corregits) === */
 			/* ======================================================================== */
 			
+			body.sportic-modal-is-open #sportic_main_container {
+				pointer-events: none;
+				filter: blur(4px) brightness(0.8);
+				transition: filter 0.2s ease-out;
+			}
 			
-			body.wp-admin .sportic-unfile-admin .sportic-tab-content,
-			body.wp-admin .sportic-unfile-admin .sportic-dia-content {
-				margin: 0; padding: 0; border: none; outline: none; box-shadow: none;
-				line-height: normal; vertical-align: baseline; box-sizing: border-box;
+			.sportic-mix-modal-overlay {
+				visibility: hidden;
+				opacity: 0;
+				position: fixed;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				background-color: rgba(15, 23, 42, 0.4);
+				z-index: 10000;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				backdrop-filter: blur(2px);
+				transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+			}
+			
+			.sportic-mix-modal-overlay.visible {
+				visibility: visible;
+				opacity: 1;
 			}
 		
+			.sportic-mix-modal-content {
+				background-color: #f8fafc;
+				border-radius: 12px;
+				width: 90%;
+				max-width: 500px;
+				max-height: 90vh;
+				display: flex;
+				flex-direction: column;
+				box-shadow: 0 10px 30px -5px rgba(0,0,0,0.3);
+				pointer-events: auto;
+				transform: scale(0.95);
+				transition: transform 0.2s ease-in-out;
+			}
+		
+			.sportic-mix-modal-overlay.visible .sportic-mix-modal-content {
+				transform: scale(1);
+			}
 			
+			.sportic-mix-modal-content .modal-header { padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+			.sportic-mix-modal-content .modal-header h3 { margin: 0; font-size: 1.25rem; }
+			.sportic-mix-modal-content .modal-close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; }
+			.sportic-mix-modal-content .modal-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; }
+			.sportic-mix-modal-content .modal-body p { margin: 0; }
+			.sportic-mix-modal-content .modal-search-wrapper input { width: 100%; box-sizing: border-box; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 8px; }
+			.sportic-mix-modal-content .modal-team-list { list-style: none; margin: 0; padding: 0; max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+			.sportic-mix-modal-content .modal-team-list li label { display: block; padding: 10px 15px; cursor: pointer; }
+			.sportic-mix-modal-content .modal-team-list li:hover { background-color: #f1f5f9; }
+			.sportic-mix-modal-content .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem; background: #fff; border-radius: 0 0 12px 12px; }
+		
+			/* ======================================================================== */
+			/* === ESTILS GENERALS TAULA I PESTANYES === */
+			/* ======================================================================== */
 		
 			.sportic-main-tabs-wrapper, .sportic-secondary-tabs-wrapper, .sportic-dies-tabs-nav {
 				position: relative;
@@ -4050,6 +5494,8 @@ function sportic_unfile_output_inline_css() {
 				echo '</style>';
 			}
 		}
+						
+										
 	   /** 
 		* JS inline per l'administració (principal i subpàgina).
 		*/
@@ -4076,33 +5522,23 @@ function sportic_unfile_output_inline_js() {
 				document.addEventListener('DOMContentLoaded', function() {
 					let isModalActive = false;
 					let elementThatOpenedModal = null;
-					
-					// =================== INICI DEL CANVI DEFINITIU ===================
-					// Aquesta és la "memòria" que recordarà els equips seleccionats.
 					let mixModalSelectedTeams = new Set();
-					// =================== FI DEL CANVI DEFINITIU ===================
-			
+					
 					const sporticActivities = <?php echo json_encode($activitiesMap); ?>;
 					const sporticActivityNames = Object.keys(sporticActivities).filter(name => name && name !== 'l' && name !== 'b');
 					
 					let cellesSeleccionades = [];
 					let seleccionant = false, anchorCell = null, celdaInici = null;
 			
-					// ========================================================================
-					// INICI DE LA CORRECCIÓ: Noves funcions JS per a la barreja de colors
-					// ========================================================================
 					function hexToRgb(hex) {
 						if (!hex) return null;
 						let hexVal = hex.startsWith('#') ? hex.substring(1) : hex;
-						if (hexVal.length === 3) {
-							hexVal = hexVal.split('').map(char => char + char).join('');
-						}
+						if (hexVal.length === 3) hexVal = hexVal.split('').map(char => char + char).join('');
 						if (hexVal.length !== 6) return null;
 						const r = parseInt(hexVal.substring(0, 2), 16);
 						const g = parseInt(hexVal.substring(2, 4), 16);
 						const b = parseInt(hexVal.substring(4, 6), 16);
-						if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
-						return [r, g, b];
+						return isNaN(r) || isNaN(g) || isNaN(b) ? null : [r, g, b];
 					}
 			
 					function rgbToHex(r, g, b) {
@@ -4113,26 +5549,13 @@ function sportic_unfile_output_inline_js() {
 						const total = colors.length;
 						if (total === 0) return '#cccccc';
 						if (total === 1) return colors[0];
-			
 						let totalR = 0, totalG = 0, totalB = 0;
 						colors.forEach(hex => {
 							const rgb = hexToRgb(hex);
-							if (rgb) {
-								totalR += rgb[0];
-								totalG += rgb[1];
-								totalB += rgb[2];
-							}
+							if (rgb) { totalR += rgb[0]; totalG += rgb[1]; totalB += rgb[2]; }
 						});
-			
-						const avgR = Math.round(totalR / total);
-						const avgG = Math.round(totalG / total);
-						const avgB = Math.round(totalB / total);
-			
-						return rgbToHex(avgR, avgG, avgB);
+						return rgbToHex(Math.round(totalR / total), Math.round(totalG / total), Math.round(totalB / total));
 					}
-					// ========================================================================
-					// FI DE LA CORRECCIÓ
-					// ========================================================================
 					
 					let autocomplete = {
 						wrapper: null, input: null, list: null, active: false,
@@ -4199,7 +5622,7 @@ function sportic_unfile_output_inline_js() {
 									li.style.backgroundColor = bgColor;
 									li.style.color = textColor;
 								});
-									
+								 
 								li.addEventListener('click', () => this.apply(name)); 
 								this.list.appendChild(li);
 							});
@@ -4217,9 +5640,7 @@ function sportic_unfile_output_inline_js() {
 						if (!cela || cela.hasAttribute('data-locked')) return;
 			
 						let finalDescription = 'l';
-						if (typeof newDescription === 'string' && newDescription.startsWith('MIX:')) {
-							finalDescription = newDescription;
-						} else if (sporticActivities.hasOwnProperty(newDescription)) {
+						if (typeof newDescription === 'string' && (newDescription.startsWith('MIX:') || sporticActivities.hasOwnProperty(newDescription))) {
 							finalDescription = newDescription;
 						}
 			
@@ -4239,16 +5660,8 @@ function sportic_unfile_output_inline_js() {
 						if (finalDescription.startsWith('MIX:')) {
 							const teams = finalDescription.substring(4).split('|').map(t => t.trim());
 							displayText = teams.map(getInitials).join('+');
-							
-							// ========================================================================
-							// INICI DE LA CORRECCIÓ: Càlcul dinàmic del color barrejat
-							// ========================================================================
 							const colorsToBlend = teams.map(teamName => sporticActivities[teamName] || '#ffffff');
-							color = blendHexColors(colorsToBlend); // <-- Ús de la nova funció JS
-							// ========================================================================
-							// FI DE LA CORRECCIÓ
-							// ========================================================================
-			
+							color = blendHexColors(colorsToBlend);
 							cela.classList.add('sportic-mixed');
 						} else {
 							color = sporticActivities[finalDescription] || '#ffffff';
@@ -4333,362 +5746,83 @@ function sportic_unfile_output_inline_js() {
 					function autoScaleText(cela) { var textEl = cela.querySelector('.sportic-text'); if (!textEl) return; textEl.style.transform = 'scale(1)'; textEl.style.fontSize = '12px'; textEl.style.padding = '0 2px'; if (cela.clientWidth <= 0 || cela.clientHeight <= 0) return; textEl.style.whiteSpace = 'nowrap'; var tw = textEl.scrollWidth; var th = textEl.scrollHeight; textEl.style.whiteSpace = ''; if (tw <= 0 || th <= 0) return; var ratioW = cela.clientWidth / (tw + 4); var ratioH = cela.clientHeight / (th + 2); var ratio  = Math.min(ratioW, ratioH) * 0.95; if (ratio > 1) ratio = 1; if (ratio < 0.1) ratio = 0.1; textEl.style.transform = 'scale('+ratio+')'; updateTextContrast(cela); }
 					function addFillHandle(cell){ if(!cell || cell.querySelector('.fill-handle') || cell.hasAttribute('data-locked')) return; cell.style.position='relative'; var handle=document.createElement('div'); handle.className='fill-handle'; handle.style.cssText="position:absolute;bottom:0px;right:0px;width:10px;height:10px;background-color:rgba(0, 0, 0, 0.7);border:1px solid white;cursor:crosshair;z-index:60;"; cell.appendChild(handle); }
 					function removeFillHandle(cell){ if (!cell) return; var fh = cell.querySelector('.fill-handle'); if(fh) fh.remove(); }
-					function addFillHandleToSelection() { document.querySelectorAll('.fill-handle').forEach(h => h.remove()); if (cellesSeleccionades.length > 0) { let bottomRightCell = null, maxRow = -Infinity, maxCol = -Infinity; cellesSeleccionades.forEach(cell => { let r=parseInt(cell.getAttribute('data-row'),10), c=parseInt(cell.getAttribute('data-col'),10); if (r > maxRow || (r === maxRow && c > maxCol)) { maxRow = r; maxCol = c; bottomRightCell = cell; } }); if (bottomRightCell && !bottomRightCell.hasAttribute('data-locked')) { const val = bottomRightCell.getAttribute('data-valor') || 'l'; if (val !== 'l' && val !== 'b') addFillHandle(bottomRightCell); } } }
+					function addFillHandleToSelection() { document.querySelectorAll('.fill-handle').forEach(h => h.remove()); if (cellesSeleccionades.length > 0) { let bottomRightCell = null, maxRow = -Infinity, maxCol = -Infinity; cellesSeleccionades.forEach(cell => { let r=parseInt(cell.getAttribute('data-row'),10), c=parseInt(cell.getAttribute('data-col'),10); if (r > maxRow || (r === maxRow && c > maxCol)) { maxRow = r; maxCol = c; bottomRightCell = cell; } }); if (bottomRightCell && !bottomRightCell.hasAttribute('data-locked')) { const val = bottomRightCell.getAttribute('data-valor') || 'l'; if (val !== 'l' && val !== 'b' && !val.startsWith('MIX:')) addFillHandle(bottomRightCell); } } }
 					
 					document.addEventListener('mousedown',function(e){ 
 						if (isModalActive || e.target.closest('.sportic-toolbar') || e.target.classList.contains('fill-handle') || autocomplete.active || e.target.closest('#sportic-mix-modal')) return; 
 						tooltip.hide();
-						if(!e.target.closest('.sportic-cell')) { clearSelection(); return; }
-						const currentTable = e.target.closest('table'); if (anchorCell && currentTable !== anchorCell.closest('table')) clearSelection(); e.preventDefault(); var taula = currentTable, fila = parseInt(e.target.closest('.sportic-cell').getAttribute('data-row'),10), col = parseInt(e.target.closest('.sportic-cell').getAttribute('data-col'),10); var isMac = (navigator.platform.toUpperCase().indexOf('MAC')>=0); var ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey; var shiftPressed = e.shiftKey; if(shiftPressed){ if(!anchorCell) anchorCell=e.target.closest('.sportic-cell'); const anchorTaula = anchorCell.closest('table'); if (anchorTaula !== taula) { clearSelection(); anchorCell = e.target.closest('.sportic-cell'); highlightCell(anchorCell, 'sportic-selected'); cellesSeleccionades.push(anchorCell); } else { const filaAnchor=parseInt(anchorCell.getAttribute('data-row'),10), colAnchor =parseInt(anchorCell.getAttribute('data-col'),10); const filaMin=Math.min(filaAnchor,fila), filaMax=Math.max(filaAnchor,fila), colMin =Math.min(colAnchor,col), colMax =Math.max(colAnchor,col); addToSelection(taula,filaMin,colMin,filaMax,colMax); } seleccionant=false; celdaInici=null; } else if(ctrlOrCmd){ const targetCell = e.target.closest('.sportic-cell'); if(targetCell.classList.contains('sportic-selected')){ unhighlightCell(targetCell, 'sportic-selected'); removeFillHandle(targetCell); cellesSeleccionades = cellesSeleccionades.filter(c => c !== targetCell); } else { highlightCell(targetCell, 'sportic-selected'); cellesSeleccionades.push(targetCell); } anchorCell = targetCell; updateHeaderHighlights(); addFillHandleToSelection(); seleccionant=false; celdaInici=null; } else { clearSelection(); const targetCell = e.target.closest('.sportic-cell'); highlightCell(targetCell, 'sportic-selected'); cellesSeleccionades.push(targetCell); anchorCell=targetCell; seleccionant=true; celdaInici=targetCell; updateHeaderHighlights(); addFillHandleToSelection(); } });
-					document.addEventListener('mouseover',function(e){ if(!seleccionant || !celdaInici || !e.target.classList.contains('sportic-cell')) return; var taula=e.target.closest('table'); if (taula !== celdaInici.closest('table')) return; var filaIni=parseInt(celdaInici.getAttribute('data-row'),10), colIni =parseInt(celdaInici.getAttribute('data-col'),10), filaAct=parseInt(e.target.getAttribute('data-row'),10), colAct =parseInt(e.target.getAttribute('data-col'),10); var filaMin=Math.min(filaIni,filaAct), filaMax=Math.max(filaIni,filaAct), colMin=Math.min(colIni,colAct), colMax=Math.max(colIni,colAct); addToSelection(taula,filaMin,colMin,filaMax,colMax); });
-					document.addEventListener('mouseup',function(){ if (seleccionant) { seleccionant=false; celdaInici=null; setTimeout(() => { addFillHandleToSelection(); }, 50); } });
-					
-					document.addEventListener('keydown',function(e){
-						if (isModalActive) return;
-						tooltip.hide();
-						if (autocomplete.active) return;
-						if(cellesSeleccionades.length > 0){
-							if (e.key === 'Delete' || e.key === 'Backspace') {
-								e.preventDefault();
-								let isAnyLocked = cellesSeleccionades.some(c => c.hasAttribute('data-locked'));
-								if (!isAnyLocked) {
-									cellesSeleccionades.forEach(c => assignaValor(c, 'l'));
-								}
-							} else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-								e.preventDefault();
-								let isAnyLocked = cellesSeleccionades.some(c => c.hasAttribute('data-locked'));
-								if (!isAnyLocked) {
-									autocomplete.show(cellesSeleccionades[0], e.key);
-								}
-							}
-						}
+						const targetCell = e.target.closest('.sportic-cell');
+						if(!targetCell) { clearSelection(); return; }
+						const currentTable = targetCell.closest('table'); if (anchorCell && currentTable !== anchorCell.closest('table')) clearSelection(); e.preventDefault();
+						const isMac = navigator.platform.toUpperCase().includes('MAC'), ctrlOrCmd = isMac ? e.metaKey : e.ctrlKey, shiftPressed = e.shiftKey;
+						if(shiftPressed){ if(!anchorCell) anchorCell=targetCell; const anchorTaula = anchorCell.closest('table'); if (anchorTaula !== currentTable) { clearSelection(); anchorCell = targetCell; highlightCell(anchorCell, 'sportic-selected'); cellesSeleccionades.push(anchorCell); } else { const filaAnchor=parseInt(anchorCell.dataset.row,10), colAnchor=parseInt(anchorCell.dataset.col,10), filaAct=parseInt(targetCell.dataset.row,10), colAct=parseInt(targetCell.dataset.col,10); addToSelection(currentTable,Math.min(filaAnchor,filaAct),Math.min(colAnchor,colAct),Math.max(filaAnchor,filaAct),Math.max(colAnchor,colAct)); } seleccionant=false; celdaInici=null; } 
+						else if(ctrlOrCmd){ if(targetCell.classList.contains('sportic-selected')){ unhighlightCell(targetCell, 'sportic-selected'); removeFillHandle(targetCell); cellesSeleccionades = cellesSeleccionades.filter(c => c !== targetCell); } else { highlightCell(targetCell, 'sportic-selected'); cellesSeleccionades.push(targetCell); } anchorCell = targetCell; updateHeaderHighlights(); addFillHandleToSelection(); seleccionant=false; celdaInici=null; } 
+						else { clearSelection(); highlightCell(targetCell, 'sportic-selected'); cellesSeleccionades.push(targetCell); anchorCell=targetCell; seleccionant=true; celdaInici=targetCell; updateHeaderHighlights(); addFillHandleToSelection(); } 
 					});
+					document.addEventListener('mouseover',function(e){ if(!seleccionant || !celdaInici || !e.target.classList.contains('sportic-cell')) return; const taula=e.target.closest('table'); if (taula !== celdaInici.closest('table')) return; const filaIni=parseInt(celdaInici.dataset.row,10), colIni=parseInt(celdaInici.dataset.col,10), filaAct=parseInt(e.target.dataset.row,10), colAct=parseInt(e.target.dataset.col,10); addToSelection(taula,Math.min(filaIni,filaAct),Math.min(colIni,colAct),Math.max(filaIni,filaAct),Math.max(colIni,colAct)); });
+					document.addEventListener('mouseup',() => { if (seleccionant) { seleccionant=false; celdaInici=null; setTimeout(addFillHandleToSelection, 50); } });
+					document.addEventListener('keydown',function(e){ if (isModalActive || autocomplete.active) return; tooltip.hide(); if(cellesSeleccionades.length > 0){ if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); if (!cellesSeleccionades.some(c => c.hasAttribute('data-locked'))) cellesSeleccionades.forEach(c => assignaValor(c, 'l')); } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (!cellesSeleccionades.some(c => c.hasAttribute('data-locked'))) autocomplete.show(cellesSeleccionades[0], e.key); } } });
+					document.addEventListener('copy',function(e){ if(cellesSeleccionades.length>0){ let minFila=Infinity, maxFila=-Infinity, minCol=Infinity, maxCol=-Infinity; cellesSeleccionades.forEach(cell => { let r=parseInt(cell.dataset.row,10), c=parseInt(cell.dataset.col,10); if(r<minFila)minFila=r; if(r>maxFila)maxFila=r; if(c<minCol)minCol=c; if(c>maxCol)maxCol=c; }); const taula=cellesSeleccionades[0].closest('table'); const dades=[]; for(let rr=minFila; rr<=maxFila; rr++){ const filaDades=[]; for(let cc=minCol; cc<=maxCol; cc++){ const cela=taula.querySelector(`.sportic-cell[data-row="${rr}"][data-col="${cc}"]`); filaDades.push(cela && cellesSeleccionades.includes(cela) ? (cela.dataset.valor||'l') : ''); } dades.push(filaDades.join('\t')); } const text=dades.join('\n'); (navigator.clipboard && navigator.clipboard.writeText) ? navigator.clipboard.writeText(text).catch(err => console.error('Error copia:', err)) : (e.clipboardData && e.clipboardData.setData('text/plain', text)); e.preventDefault(); } });
+					document.addEventListener('paste',function(e){ if(cellesSeleccionades.length === 1){ const anchorCellPaste = cellesSeleccionades[0], minFila=parseInt(anchorCellPaste.dataset.row,10), minCol=parseInt(anchorCellPaste.dataset.col,10), taula=anchorCellPaste.closest('table'); const cd = (e.clipboardData || window.clipboardData)?.getData('text') || ''; if(!cd)return; e.preventDefault(); const dataArr=cd.split(/\r?\n/).filter(ln => ln.trim() !== '').map(ln => ln.split('\t')); let canPaste = true; for(let i=0; i<dataArr.length; i++){ for(let j=0; j<dataArr[i].length; j++){ let celaTarget=taula.querySelector(`.sportic-cell[data-row="${minFila+i}"][data-col="${minCol+j}"]`); if(celaTarget && celaTarget.hasAttribute('data-locked')){ canPaste = false; break; } } if (!canPaste) break; } if (canPaste) { clearSelection(); let pastedCells = []; for(let i=0; i<dataArr.length; i++){ for(let j=0; j<dataArr[i].length; j++){ let celaTarget=taula.querySelector(`.sportic-cell[data-row="${minFila+i}"][data-col="${minCol+j}"]`); if(celaTarget){ assignaValor(celaTarget,dataArr[i][j].trim()); pastedCells.push(celaTarget); } } } cellesSeleccionades = pastedCells; cellesSeleccionades.forEach(c => highlightCell(c, 'sportic-selected')); anchorCell = anchorCellPaste; updateHeaderHighlights(); addFillHandleToSelection(); } else { alert("No es pot enganxar sobre cel·les bloquejades manualment."); } } else if (cellesSeleccionades.length > 1) { e.preventDefault(); } });
 			
-					document.addEventListener('copy',function(e){ if(cellesSeleccionades.length>0){ var minFila=Infinity, maxFila=-Infinity, minCol=Infinity, maxCol=-Infinity; cellesSeleccionades.forEach(cell => { let r=parseInt(cell.getAttribute('data-row'),10), c=parseInt(cell.getAttribute('data-col'),10); if(r<minFila)minFila=r; if(r>maxFila)maxFila=r; if(c<minCol)minCol=c; if(c>maxCol)maxCol=c; }); var taula=cellesSeleccionades[0].closest('table'); var dades=[]; for(var rr=minFila; rr<=maxFila; rr++){ var filaDades=[]; for(var cc=minCol; cc<=maxCol; cc++){ var cela=taula.querySelector(`.sportic-cell[data-row="${rr}"][data-col="${cc}"]`); if(cela && cellesSeleccionades.includes(cela)){ var val = cela.getAttribute('data-valor')||'l'; filaDades.push(val); } else { filaDades.push(''); } } dades.push(filaDades.join('\t')); } var text=dades.join('\n'); if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).catch(err => console.error('Error copia:', err)); } else if (e.clipboardData) { e.clipboardData.setData('text/plain', text); } e.preventDefault(); } });
-					
-					document.addEventListener('paste',function(e){
-						if(cellesSeleccionades.length === 1){
-							var anchorCellPaste = cellesSeleccionades[0], minFila=parseInt(anchorCellPaste.getAttribute('data-row'),10), minCol =parseInt(anchorCellPaste.getAttribute('data-col'),10), taula=anchorCellPaste.closest('table');
-							var cd = (e.clipboardData || window.clipboardData)?.getData('text') || '';
-							if(!cd)return;
-							e.preventDefault();
-							var lines=cd.split(/\r?\n/).filter(ln => ln.trim() !== ''), dataArr=lines.map(ln => ln.split('\t'));
-							let canPaste = true;
-							for(let i=0; i<dataArr.length; i++){
-								for(let j=0; j<dataArr[i].length; j++){
-									let celaTarget=taula.querySelector(`.sportic-cell[data-row="${minFila+i}"][data-col="${minCol+j}"]`);
-									if(celaTarget && celaTarget.hasAttribute('data-locked')){
-										canPaste = false;
-										break;
-									}
-								}
-								if (!canPaste) break;
-							}
-							if (canPaste) {
-								clearSelection();
-								let pastedCells = [];
-								for(let i=0; i<dataArr.length; i++){
-									for(let j=0; j<dataArr[i].length; j++){
-										let celaTarget=taula.querySelector(`.sportic-cell[data-row="${minFila+i}"][data-col="${minCol+j}"]`);
-										if(celaTarget){
-											let nouVal = dataArr[i][j].trim();
-											assignaValor(celaTarget,nouVal);
-											pastedCells.push(celaTarget);
-										}
-									}
-								}
-								cellesSeleccionades = pastedCells;
-								cellesSeleccionades.forEach(c => highlightCell(c, 'sportic-selected'));
-								anchorCell = anchorCellPaste;
-								updateHeaderHighlights();
-								addFillHandleToSelection();
-							} else {
-								alert("No es pot enganxar sobre cel·les bloquejades manualment.");
-							}
-						} else if (cellesSeleccionades.length > 1) {
-							e.preventDefault();
-						}
-					});
+					let dragFillActive=false, dragFillOriginCell=null, dragFillIndicator=null;
+					function createDragFillIndicator(text, bgColor){ document.getElementById('dragfill-indicator')?.remove(); const indicator=document.createElement('div'); indicator.id='dragfill-indicator'; indicator.style.cssText="position:fixed;pointer-events:none;padding:4px 8px;border:2px dashed #555;border-radius:4px;z-index:10000;"; indicator.style.backgroundColor=bgColor; indicator.textContent = text; const rgb = parseRGBColor(bgColor); indicator.style.color = getTextColorForBackground(rgb[0], rgb[1], rgb[2]); document.body.appendChild(indicator); return indicator; }
+					function clearDragFillSelection(table){ if (!table) return; table.querySelectorAll('.sportic-cell.dragfill-selected').forEach(cell => { unhighlightCell(cell, 'dragfill-selected'); cell.style.boxShadow = ''; }); }
+					function updateDragFillSelection(targetCell){ if(!dragFillOriginCell || !targetCell || dragFillOriginCell.hasAttribute('data-locked')) { clearDragFillSelection(dragFillOriginCell?.closest('table')); return; } const originRow=parseInt(dragFillOriginCell.dataset.row,10), originCol=parseInt(dragFillOriginCell.dataset.col,10), targetRow=parseInt(targetCell.dataset.row,10), targetCol=parseInt(targetCell.dataset.col,10); const rowMin=Math.min(originRow,targetRow), rowMax=Math.max(originRow,targetRow), colMin=Math.min(originCol,targetCol), colMax=Math.max(originCol,targetCol); const table=dragFillOriginCell.closest('table'); clearDragFillSelection(table); let blockDrag = false; table.querySelectorAll('.sportic-cell').forEach(cell => { const r=parseInt(cell.dataset.row,10), c=parseInt(cell.dataset.col,10); if(r>=rowMin && r<=rowMax && c>=colMin && c<=colMax){ if (cell !== dragFillOriginCell && cell.hasAttribute('data-locked')) blockDrag = true; highlightCell(cell, 'dragfill-selected'); } }); table.querySelectorAll('.dragfill-selected').forEach(c => c.style.boxShadow = `inset 0 0 0 2px ${blockDrag ? 'red' : '#d4a200'}`); }
+					function dragFillMouseMove(e){ if(!dragFillActive || !dragFillIndicator)return; dragFillIndicator.style.top = (e.clientY+10)+'px'; dragFillIndicator.style.left = (e.clientX+10)+'px'; const elem = document.elementFromPoint(e.clientX, e.clientY); if(elem?.classList.contains('sportic-cell')) updateDragFillSelection(elem); }
+					function dragFillMouseUp(e){ if(!dragFillActive)return; const table=dragFillOriginCell?.closest('table'); const cellsToFill = table ? Array.from(table.querySelectorAll('.sportic-cell.dragfill-selected')) : []; if (table && dragFillOriginCell) { let blockDrag = cellsToFill.some(cell => cell !== dragFillOriginCell && cell.hasAttribute('data-locked')); if (!blockDrag) { const valorOrigen = dragFillOriginCell.dataset.valor||'l'; cellsToFill.forEach(cell => { if (cell !== dragFillOriginCell) assignaValor(cell, valorOrigen); }); } cellsToFill.forEach(cell => { unhighlightCell(cell, 'dragfill-selected'); cell.style.boxShadow = ''; }); } dragFillIndicator?.remove(); dragFillIndicator=null; dragFillActive=false; dragFillOriginCell=null; document.removeEventListener('mousemove',dragFillMouseMove); document.removeEventListener('mouseup',dragFillMouseUp); addFillHandleToSelection(); }
+					document.addEventListener('mousedown',function(e){ if(e.target.classList.contains('fill-handle')){ e.preventDefault(); e.stopPropagation(); dragFillOriginCell = e.target.closest('.sportic-cell'); if (!dragFillOriginCell || dragFillOriginCell.hasAttribute('data-locked')) return; dragFillActive=true; const realVal = dragFillOriginCell.dataset.valor||'l'; const cs = window.getComputedStyle(dragFillOriginCell); dragFillIndicator = createDragFillIndicator(realVal, cs.backgroundColor||'#ccc'); document.addEventListener('mousemove',dragFillMouseMove); document.addEventListener('mouseup',dragFillMouseUp); } });
+					document.addEventListener('mouseup',() => { if (!seleccionant && !dragFillActive) setTimeout(addFillHandleToSelection, 50); });
 			
-					var dragFillActive=false, dragFillOriginCell=null, dragFillIndicator=null;
-					function createDragFillIndicator(text, bgColor){ var oldIndicator = document.getElementById('dragfill-indicator'); if(oldIndicator) oldIndicator.remove(); var indicator=document.createElement('div'); indicator.id='dragfill-indicator'; indicator.style.cssText="position:fixed;pointer-events:none;padding:4px 8px;border:2px dashed #555;border-radius:4px;z-index:10000;"; indicator.style.backgroundColor=bgColor; indicator.textContent = text; var rgb = parseRGBColor(bgColor); indicator.style.color = getTextColorForBackground(rgb[0], rgb[1], rgb[2]); document.body.appendChild(indicator); return indicator; }
-					function clearDragFillSelection(table){ if (!table) return; table.querySelectorAll('.sportic-cell.dragfill-selected').forEach(function(cell){ unhighlightCell(cell, 'dragfill-selected'); cell.style.boxShadow = ''; }); }
-					
-					function updateDragFillSelection(targetCell){
-						if(!dragFillOriginCell || !targetCell) return;
-						if (dragFillOriginCell.hasAttribute('data-locked')) {
-							clearDragFillSelection(dragFillOriginCell.closest('table'));
-							return;
-						}
-						var originRow=parseInt(dragFillOriginCell.getAttribute('data-row'),10), originCol=parseInt(dragFillOriginCell.getAttribute('data-col'),10), targetRow=parseInt(targetCell.getAttribute('data-row'),10), targetCol=parseInt(targetCell.getAttribute('data-col'),10);
-						var rowMin=Math.min(originRow,targetRow), rowMax=Math.max(originRow,targetRow), colMin=Math.min(originCol,targetCol), colMax=Math.max(originCol,targetCol);
-						var table=dragFillOriginCell.closest('table');
-						clearDragFillSelection(table);
-						let blockDrag = false;
-						table.querySelectorAll('.sportic-cell').forEach(function(cell){
-							var r=parseInt(cell.getAttribute('data-row'),10), c=parseInt(cell.getAttribute('data-col'),10);
-							if(r>=rowMin && r<=rowMax && c>=colMin && c<=colMax){
-								if (cell !== dragFillOriginCell && cell.hasAttribute('data-locked')) blockDrag = true;
-								highlightCell(cell, 'dragfill-selected');
-							}
-						});
-						if (blockDrag) table.querySelectorAll('.dragfill-selected').forEach(c => c.style.boxShadow = 'inset 0 0 0 2px red');
-						else table.querySelectorAll('.dragfill-selected').forEach(c => c.style.boxShadow = 'inset 0 0 0 2px #d4a200');
-					}
-					function dragFillMouseMove(e){ if(!dragFillActive || !dragFillIndicator)return; dragFillIndicator.style.top = (e.clientY+10)+'px'; dragFillIndicator.style.left = (e.clientX+10)+'px'; var elem = document.elementFromPoint(e.clientX, e.clientY); if(elem && elem.classList.contains('sportic-cell')) updateDragFillSelection(elem); }
-					
-					function dragFillMouseUp(e){
-						if(!dragFillActive)return;
-						const table=dragFillOriginCell?.closest('table');
-						const cellsToCleanAndFill = table ? Array.from(table.querySelectorAll('.sportic-cell.dragfill-selected')) : [];
-						if (!table || !dragFillOriginCell) {
-							if(dragFillIndicator?.parentElement) dragFillIndicator.remove();
-							dragFillIndicator=null; dragFillActive=false; dragFillOriginCell=null;
-							document.removeEventListener('mousemove',dragFillMouseMove); document.removeEventListener('mouseup',dragFillMouseUp);
-							return;
-						}
-						let blockDrag = false;
-						cellsToCleanAndFill.forEach(cell => {
-							if (cell !== dragFillOriginCell && cell.hasAttribute('data-locked')) blockDrag = true;
-						});
-						if (!blockDrag) {
-							var valorOrigen = dragFillOriginCell.getAttribute('data-valor')||'l';
-							cellsToCleanAndFill.forEach(cell => { if (cell !== dragFillOriginCell) assignaValor(cell, valorOrigen); });
-						} else console.log("Drag-fill cancel·lat per bloqueig.");
-						cellsToCleanAndFill.forEach(function(cell) { unhighlightCell(cell, 'dragfill-selected'); cell.style.boxShadow = ''; });
-						if(dragFillIndicator?.parentElement) dragFillIndicator.remove();
-						dragFillIndicator=null; dragFillActive=false; dragFillOriginCell=null;
-						document.removeEventListener('mousemove',dragFillMouseMove); document.removeEventListener('mouseup',dragFillMouseUp);
-						addFillHandleToSelection();
-					}
-			
-					document.addEventListener('mousedown',function(e){ if(e.target.classList.contains('fill-handle')){ e.preventDefault(); e.stopPropagation(); dragFillOriginCell = e.target.closest('.sportic-cell'); if (!dragFillOriginCell || dragFillOriginCell.hasAttribute('data-locked')) { return; } dragFillActive=true; var realVal = dragFillOriginCell.getAttribute('data-valor')||'l'; var cs = window.getComputedStyle(dragFillOriginCell); var bgColor = cs.backgroundColor||'#ccc'; dragFillIndicator = createDragFillIndicator(realVal, bgColor); document.addEventListener('mousemove',dragFillMouseMove); document.addEventListener('mouseup',dragFillMouseUp); } });
-					document.addEventListener('mouseup',function(){ if (!seleccionant && !dragFillActive) setTimeout(addFillHandleToSelection, 50); });
 					function lockCell(cell) { if (!cell || cell.hasAttribute('data-locked')) return; cell.setAttribute('data-locked', '1'); cell.classList.add('sportic-locked'); let lockIcon = cell.querySelector('.sportic-lock-icon'); if (!lockIcon) { lockIcon = document.createElement('span'); lockIcon.className = 'sportic-lock-icon dashicons dashicons-lock'; cell.style.position = 'relative'; cell.appendChild(lockIcon); } removeFillHandle(cell); }
-					function unlockCell(cell) { if (!cell || !cell.hasAttribute('data-locked')) return; cell.removeAttribute('data-locked'); cell.classList.remove('sportic-locked'); let lockIcon = cell.querySelector('.sportic-lock-icon'); if (lockIcon) lockIcon.remove(); const val = cell.getAttribute('data-valor') || 'l'; if (val !== 'l' && val !== 'b') { addFillHandle(cell); } }
-					document.querySelectorAll('.sportic-toolbar .lock-button').forEach(button => { button.addEventListener('click', function() { if (cellesSeleccionades.length === 0) { alert("Selecciona cel·les a bloquejar."); return; } const isAnyRecurrent = cellesSeleccionades.some(c => c.hasAttribute('data-recurrent')); if (isAnyRecurrent) { alert("No es poden bloquejar cel·les d'un esdeveniment recurrent."); return; } cellesSeleccionades.forEach(lockCell); addFillHandleToSelection(); }); });
-					document.querySelectorAll('.sportic-toolbar .unlock-button').forEach(button => { button.addEventListener('click', function() { if (cellesSeleccionades.length === 0) { alert("Selecciona cel·les a desbloquejar."); return; } cellesSeleccionades.forEach(unlockCell); addFillHandleToSelection(); }); });
+					function unlockCell(cell) { if (!cell || !cell.hasAttribute('data-locked')) return; cell.removeAttribute('data-locked'); cell.classList.remove('sportic-locked'); cell.querySelector('.sportic-lock-icon')?.remove(); const val = cell.dataset.valor || 'l'; if (val !== 'l' && val !== 'b') { addFillHandle(cell); } }
 					
-					const mixModal = document.getElementById('sportic-mix-modal');
-					const mixTeamList = document.getElementById('sportic-mix-team-list');
-					const mixSearch = document.getElementById('sportic-mix-search');
-					const mixCancel = document.getElementById('sportic-mix-cancel');
-					const mixApply = document.getElementById('sportic-mix-apply');
-					const mixClose = document.getElementById('sportic-mix-close');
+					document.querySelectorAll('.sportic-toolbar .lock-button').forEach(button => { button.addEventListener('click', () => { if (cellesSeleccionades.length === 0) { alert("Selecciona cel·les a bloquejar."); return; } if (cellesSeleccionades.some(c => c.hasAttribute('data-recurrent'))) { alert("No es poden bloquejar cel·les d'un esdeveniment recurrent."); return; } cellesSeleccionades.forEach(lockCell); addFillHandleToSelection(); }); });
+					document.querySelectorAll('.sportic-toolbar .unlock-button').forEach(button => { button.addEventListener('click', () => { if (cellesSeleccionades.length === 0) { alert("Selecciona cel·les a desbloquejar."); return; } cellesSeleccionades.forEach(unlockCell); addFillHandleToSelection(); }); });
 			
-					document.querySelectorAll('.sportic-toolbar .mix-button').forEach(button => {
-						button.addEventListener('click', function(e) {
-							elementThatOpenedModal = e.target.closest('button');
-							if (cellesSeleccionades.length === 0) {
-								alert("Selecciona primer les cel·les per a l'entrenament mixt.");
-								return;
-							}
-							if (cellesSeleccionades.some(c => c.hasAttribute('data-locked') || c.hasAttribute('data-recurrent'))) {
-								alert("No es poden crear sessions mixtes en cel·les bloquejades o que pertanyen a un esdeveniment recurrent.");
-								return;
-							}
-							// =================== INICI DEL CANVI DEFINITIU ===================
-							// Buidem la memòria de seleccions cada cop que obrim el modal
-							mixModalSelectedTeams.clear();
-							// =================== FI DEL CANVI DEFINITIU ===================
-							populateMixModal();
-							if (mixModal) {
-								mixModal.style.display = 'flex';
-								document.body.classList.add('sportic-modal-is-open');
-								isModalActive = true;
-								setTimeout(() => mixSearch.focus(), 50);
-							}
-						});
-					});
-			
-					function populateMixModal() {
-						if (!mixTeamList || !mixSearch) return;
-						mixTeamList.innerHTML = '';
-						const searchTerm = mixSearch.value.toLowerCase();
-						sporticActivityNames.forEach(team => {
-							if (team.toLowerCase().includes(searchTerm)) {
-								const li = document.createElement('li');
-								// =================== INICI DEL CANVI DEFINITIU ===================
-								// En construir la llista, comprovem la "memòria" per marcar els checkboxes
-								const isChecked = mixModalSelectedTeams.has(team) ? 'checked' : '';
-								li.innerHTML = `<label><input type="checkbox" value="${team}" ${isChecked}> ${team}</label>`;
-								// =================== FI DEL CANVI DEFINITIU ===================
-								mixTeamList.appendChild(li);
-							}
-						});
-					}
-					
-					function closeMixModal() {
-						if (mixModal) {
-							mixModal.style.display = 'none';
-							document.body.classList.remove('sportic-modal-is-open');
-							isModalActive = false;
-							if (elementThatOpenedModal) {
-								elementThatOpenedModal.focus();
-								elementThatOpenedModal = null;
-							}
-						}
-					}
-			
+					const mixModal = document.getElementById('sportic-mix-modal'), mixTeamList = document.getElementById('sportic-mix-team-list'), mixSearch = document.getElementById('sportic-mix-search'), mixCancel = document.getElementById('sportic-mix-cancel'), mixApply = document.getElementById('sportic-mix-apply'), mixClose = document.getElementById('sportic-mix-close');
+					document.querySelectorAll('.sportic-toolbar .mix-button').forEach(button => { button.addEventListener('click', e => { elementThatOpenedModal = e.target.closest('button'); if (cellesSeleccionades.length === 0) { alert("Selecciona primer les cel·les per a l'entrenament mixt."); return; } if (cellesSeleccionades.some(c => c.hasAttribute('data-locked') || c.hasAttribute('data-recurrent'))) { alert("No es poden crear sessions mixtes en cel·les bloquejades o recurrents."); return; } mixModalSelectedTeams.clear(); populateMixModal(); if (mixModal) { 
+						mixModal.classList.add('visible'); 
+						document.body.classList.add('sportic-modal-is-open'); isModalActive = true; setTimeout(() => mixSearch.focus(), 50); } }); });
+					function populateMixModal() { if (!mixTeamList || !mixSearch) return; mixTeamList.innerHTML = ''; const searchTerm = mixSearch.value.toLowerCase(); sporticActivityNames.forEach(team => { if (team.toLowerCase().includes(searchTerm)) { const li = document.createElement('li'), isChecked = mixModalSelectedTeams.has(team) ? 'checked' : ''; li.innerHTML = `<label><input type="checkbox" value="${team}" ${isChecked}> ${team}</label>`; mixTeamList.appendChild(li); } }); }
+					function closeMixModal() { if (mixModal) { 
+						mixModal.classList.remove('visible');
+						document.body.classList.remove('sportic-modal-is-open'); isModalActive = false; if (elementThatOpenedModal) { elementThatOpenedModal.focus(); elementThatOpenedModal = null; } } }
 					if (mixSearch) mixSearch.addEventListener('input', populateMixModal);
 					if (mixCancel) mixCancel.addEventListener('click', closeMixModal);
 					if (mixClose) mixClose.addEventListener('click', closeMixModal);
+					if (mixModal) { mixModal.addEventListener('click', e => { if (e.target === mixModal) closeMixModal(); }); mixModal.addEventListener('keydown', e => { if (e.key === 'Escape') closeMixModal(); }); }
+					if (mixTeamList) { mixTeamList.addEventListener('change', e => { if (e.target.type === 'checkbox') { const teamName = e.target.value; e.target.checked ? mixModalSelectedTeams.add(teamName) : mixModalSelectedTeams.delete(teamName); } }); }
+					if (mixApply) { mixApply.addEventListener('click', () => { const selectedTeams = Array.from(mixModalSelectedTeams); if (selectedTeams.length < 2) { alert("Has de seleccionar almenys dos equips."); return; } const valorMixt = 'MIX:' + selectedTeams.sort().join('|'); cellesSeleccionades.forEach(cell => assignaValor(cell, valorMixt)); closeMixModal(); }); }
 					
-					if (mixModal) {
-						mixModal.addEventListener('click', function(e) {
-							if (e.target === mixModal) {
-								closeMixModal();
-							}
-						});
-						mixModal.addEventListener('keydown', function(e) {
-							if (e.key === 'Escape') {
-								closeMixModal();
-							}
-						});
-					}
-			
-					// =================== INICI DEL CANVI DEFINITIU ===================
-					// Afegim un listener a la llista per actualitzar la "memòria" quan es marca/desmarca un checkbox
-					if (mixTeamList) {
-						mixTeamList.addEventListener('change', function(e) {
-							if (e.target.type === 'checkbox') {
-								const teamName = e.target.value;
-								if (e.target.checked) {
-									mixModalSelectedTeams.add(teamName);
-								} else {
-									mixModalSelectedTeams.delete(teamName);
-								}
-							}
-						});
-					}
-			
-					if (mixApply) {
-						mixApply.addEventListener('click', function() {
-							// Ara llegim les dades directament de la "memòria"
-							const selectedTeams = Array.from(mixModalSelectedTeams);
-			
-							if (selectedTeams.length < 2) {
-								alert("Has de seleccionar almenys dos equips per crear una sessió mixta.");
-								return;
-							}
-			
-							// ========================================================================
-							// === INICI DE LA MODIFICACIÓ SOL·LICITADA ===
-							// ========================================================================
-							const valorMixt = 'MIX: ' + selectedTeams.join(' | ');
-							// ========================================================================
-							// === FI DE LA MODIFICACIÓ SOL·LICITADA ===
-							// ========================================================================
-							
-							cellesSeleccionades.forEach(cell => {
-								assignaValor(cell, valorMixt);
-							});
-			
-							closeMixModal();
-						});
-					}
-					// =================== FI DEL CANVI DEFINITIU ===================
-			
-					const mainForm = document.getElementById('sportic-main-form');
-					const activeTabInput = document.getElementById('sportic_active_tab_input');
-					const subDayInput = document.getElementById('sportic_active_subday_input');
-			
+					const mainForm = document.getElementById('sportic-main-form'), activeTabInput = document.getElementById('sportic_active_tab_input'), subDayInput = document.getElementById('sportic_active_subday_input');
 					if(mainForm && activeTabInput) {
-						document.querySelectorAll('.sportic-main-tabs-wrapper .nav-tab').forEach(function(tab){
-							tab.addEventListener('click', function(e){
-								e.preventDefault();
-								const targetSelector = tab.getAttribute('href');
-								document.querySelectorAll('.sportic-main-tabs-wrapper .nav-tab').forEach(t => t.classList.remove('nav-tab-active'));
-								document.querySelectorAll('.sportic-main-content-box .sportic-tab-content').forEach(tc => tc.style.display = 'none');
-								tab.classList.add('nav-tab-active');
-								const contentDiv = document.querySelector(targetSelector);
-								if(contentDiv) { contentDiv.style.display = 'block'; }
-								activeTabInput.value = targetSelector;
-								clearSelection();
-							});
-						});
-						const params = new URLSearchParams(window.location.search);
-						const tabFromUrl = params.get('active_tab');
-						if(tabFromUrl) {
-							const wantedTab = document.querySelector(`.nav-tab[href="${tabFromUrl}"]`);
-							if(wantedTab) wantedTab.click();
-						} else {
-							let firstTab = document.querySelector('.sportic-main-tabs-wrapper .nav-tab');
-							if(firstTab) firstTab.click();
-						}
+						document.querySelectorAll('.sportic-main-tabs-wrapper .nav-tab').forEach(tab => { tab.addEventListener('click', e => { e.preventDefault(); const targetSelector = tab.getAttribute('href'); document.querySelectorAll('.sportic-main-tabs-wrapper .nav-tab').forEach(t => t.classList.remove('nav-tab-active')); document.querySelectorAll('.sportic-main-content-box .sportic-tab-content').forEach(tc => tc.style.display = 'none'); tab.classList.add('nav-tab-active'); const contentDiv = document.querySelector(targetSelector); if(contentDiv) contentDiv.style.display = 'block'; activeTabInput.value = targetSelector; clearSelection(); }); });
+						const tabFromUrl = new URLSearchParams(window.location.search).get('active_tab');
+						const wantedTab = tabFromUrl ? document.querySelector(`.nav-tab[href="${tabFromUrl}"]`) : document.querySelector('.sportic-main-tabs-wrapper .nav-tab');
+						if(wantedTab) wantedTab.click();
 					}
+					document.querySelectorAll('.sportic-secondary-tabs-wrapper .sportic-secondary-tab').forEach(tabButton => { tabButton.addEventListener('click', e => { e.preventDefault(); const parentContainer = tabButton.closest('.sportic-tab-content'); if (!parentContainer) return; parentContainer.querySelectorAll('.sportic-secondary-tab').forEach(t => t.classList.remove('active')); parentContainer.querySelectorAll('.sportic-dia-content').forEach(dc => dc.style.display = 'none'); tabButton.classList.add('active'); const targetSelector = tabButton.dataset.target, targetContent = document.querySelector(targetSelector); if (targetContent) targetContent.style.display = 'block'; if (subDayInput) subDayInput.value = tabButton.dataset.daykey; clearSelection(); }); });
+					if(mainForm) { mainForm.addEventListener('submit', () => { const hiddenJsonPiscines = document.getElementById('sportic_dades_json'); if(hiddenJsonPiscines){ const objectPiscines={}; document.querySelectorAll('.sportic-table-body-wrapper table').forEach(tbl => { const piscinaSlug=tbl.dataset.piscina, dia=tbl.dataset.dia; if(!piscinaSlug||!dia)return; if(!objectPiscines[piscinaSlug]) objectPiscines[piscinaSlug]={}; if(!objectPiscines[piscinaSlug][dia]) objectPiscines[piscinaSlug][dia]={}; tbl.querySelectorAll('tbody tr').forEach(tr => { const horaCell=tr.querySelector('td:first-child'); if(!horaCell)return; const hora=horaCell.textContent.trim(); if(!hora)return; const carrils=[]; tr.querySelectorAll('.sportic-cell').forEach(cela => { let valorFinal = cela.dataset.valor || 'l'; if (cela.hasAttribute('data-recurrent') && !cela.hasAttribute('data-locked')) valorFinal = '@' + valorFinal; else if (cela.hasAttribute('data-locked')) valorFinal = '!' + valorFinal; carrils.push(valorFinal); }); objectPiscines[piscinaSlug][dia][hora]=carrils; }); }); hiddenJsonPiscines.value=JSON.stringify(objectPiscines); } }); }
 			
-					document.querySelectorAll('.sportic-secondary-tabs-wrapper .sportic-secondary-tab').forEach(function(tabButton){
-						tabButton.addEventListener('click', function(e){
-							e.preventDefault();
-							const parentContainer = tabButton.closest('.sportic-tab-content');
-							if (!parentContainer) return;
-							parentContainer.querySelectorAll('.sportic-secondary-tab').forEach(t => t.classList.remove('active'));
-							parentContainer.querySelectorAll('.sportic-dia-content').forEach(dc => dc.style.display = 'none');
-							tabButton.classList.add('active');
-							const targetSelector = tabButton.getAttribute('data-target');
-							const targetContent = document.querySelector(targetSelector);
-							if (targetContent) { targetContent.style.display = 'block'; }
-							const dayKey = tabButton.getAttribute('data-daykey');
-							if (subDayInput && dayKey) { subDayInput.value = dayKey; }
-							clearSelection();
-						});
-					});
-			
-					if(mainForm) {
-						mainForm.addEventListener('submit', function(e){
-							var hiddenJsonPiscines = document.getElementById('sportic_dades_json');
-							var condHidden = document.getElementById('condicions_ambientals_json');
-							if(hiddenJsonPiscines){
-								var objectPiscines={};
-								document.querySelectorAll('.sportic-table-body-wrapper table').forEach(function(tbl){
-									var piscinaSlug=tbl.getAttribute('data-piscina'), dia=tbl.getAttribute('data-dia');
-									if(!piscinaSlug||!dia)return;
-									if(!objectPiscines[piscinaSlug]) objectPiscines[piscinaSlug]={};
-									if(!objectPiscines[piscinaSlug][dia]) objectPiscines[piscinaSlug][dia]={};
-									tbl.querySelectorAll('tbody tr').forEach(function(tr){
-										var horaCell=tr.querySelector('td:first-child'); if(!horaCell)return;
-										var hora=horaCell.textContent.trim(); if(!hora)return;
-										var carrils=[];
-										tr.querySelectorAll('.sportic-cell').forEach(function(cela){
-											var valorBase = cela.getAttribute('data-valor') || 'l';
-											var valorFinal = valorBase;
-											if (cela.hasAttribute('data-recurrent') && !cela.hasAttribute('data-locked')) { 
-												valorFinal = '@' + valorBase;
-											} 
-											else if (cela.hasAttribute('data-locked')) { 
-												valorFinal = '!' + valorBase;
-											}
-											carrils.push(valorFinal);
-										});
-										objectPiscines[piscinaSlug][dia][hora]=carrils;
-									});
-								});
-								hiddenJsonPiscines.value=JSON.stringify(objectPiscines);
-							}
-							if(condHidden){ var data={}; document.querySelectorAll('#taula-qualitat-aire input[name^="__dummy_condicions_ambientals"]').forEach(function(input){ var matches=input.getAttribute('name').match(/\[([^\]]+)\]\[([^\]]+)\]$/); if(matches) { if(!data[matches[1]]) data[matches[1]]=[]; data[matches[1]][parseInt(matches[2])] = input.value; } }); condHidden.value=JSON.stringify(data); }
-						});
-					}
-					
 					// ========================================================================
-					// === FUNCIONALITAT PANTALLA COMPLETA (MODIFICADA: AMB SEGURETAT) ===
+					// === NOU BLOC: LÒGICA DE PANTALLA COMPLETA ===
 					// ========================================================================
 					const fullscreenBtn = document.getElementById('sportic-fullscreen-toggle');
 					
-					// Funció per actualitzar l'estat visual
 					function updateFullscreenState() {
-						// SEGURETAT: Si no hi ha botó en aquesta pàgina, no apliquem el mode Zen.
-						// Això evita quedar atrapat en pàgines sense botó de sortida.
+						// Comprovem si el botó existeix (per seguretat)
 						if (!fullscreenBtn) {
 							document.body.classList.remove('sportic-fullscreen-mode');
 							return;
 						}
 			
+						// Llegim l'estat de localStorage (per persistència entre recàrregues)
 						const isZen = localStorage.getItem('sportic_zen_mode') === 'true';
 						
 						if (isZen) {
 							document.body.classList.add('sportic-fullscreen-mode');
-							// Actualitzar icona a "Contract"
+							// Canviem icona
 							const icon = fullscreenBtn.querySelector('span');
 							if (icon) {
 								icon.classList.remove('dashicons-editor-expand');
@@ -4697,7 +5831,7 @@ function sportic_unfile_output_inline_js() {
 							fullscreenBtn.title = 'Sortir del Mode Zen';
 						} else {
 							document.body.classList.remove('sportic-fullscreen-mode');
-							// Actualitzar icona a "Expand"
+							// Canviem icona
 							const icon = fullscreenBtn.querySelector('span');
 							if (icon) {
 								icon.classList.remove('dashicons-editor-contract');
@@ -4707,30 +5841,31 @@ function sportic_unfile_output_inline_js() {
 						}
 					}
 			
-					// 1. Comprovar l'estat a l'inici (immediatament)
+					// 1. Executar a l'inici per aplicar l'estat guardat
 					updateFullscreenState();
 			
-					// 2. Gestionar el clic
+					// 2. Afegir l'esdeveniment al botó
 					if (fullscreenBtn) {
 						fullscreenBtn.addEventListener('click', function(e) {
 							e.preventDefault();
-							// Alternar l'estat a la memòria
+							// Alternem l'estat
 							const currentlyZen = localStorage.getItem('sportic_zen_mode') === 'true';
 							localStorage.setItem('sportic_zen_mode', !currentlyZen);
 							
-							// Aplicar canvis
+							// Apliquem els canvis
 							updateFullscreenState();
 						});
 					}
 					// ========================================================================
-					// === FI DE LA FUNCIONALITAT DE PANTALLA COMPLETA ===
+					// === FI BLOC PANTALLA COMPLETA ===
 					// ========================================================================
 			
 					setTimeout(() => { document.querySelectorAll('.sportic-cell').forEach(cela => { autoScaleText(cela); updateTextContrast(cela); }); addFillHandleToSelection(); }, 250);
 				});
 				</script>
 				<?php
-			}									
+			}
+						
    /**
 	* SHORTCODE FRONTEND per mostrar Condicions Ambientals
 	*/
@@ -5044,62 +6179,18 @@ function sportic_unfile_get_plantilles($lloc_slug) {
 		if (empty($lloc_slug)) {
 			return [];
 		}
-		$all_templates_per_lloc = get_option('sportic_unfile_plantilles', array());
+	
+		// Aquesta funció ara només llegeix les plantilles. La migració es gestiona manualment.
+		$all_templates_per_lloc = get_option('sportic_unfile_plantilles', []);
 		if (!is_array($all_templates_per_lloc)) {
-			$all_templates_per_lloc = array();
-		}
-		
-		// Lògica de migració automàtica per a plantilles antigues (globals)
-		$old_templates_found = false;
-		foreach (array_keys($all_templates_per_lloc) as $key) {
-			if (strpos($key, 'tmpl_') === 0) {
-				$old_templates_found = true;
-				break;
-			}
+			return [];
 		}
 	
-		if ($old_templates_found) {
-			$migrated_templates = [];
-			$first_lloc_slug = '';
-			if (function_exists('sportllocs_get_llocs')) {
-				$llocs = sportllocs_get_llocs();
-				if (!empty($llocs)) {
-					$first_lloc_slug = key($llocs);
-				}
-			}
-			if (empty($first_lloc_slug)) {
-				// Si no hi ha llocs, no podem migrar, retornem buit per al lloc demanat.
-				return isset($all_templates_per_lloc[$lloc_slug]) && is_array($all_templates_per_lloc[$lloc_slug]) ? $all_templates_per_lloc[$lloc_slug] : [];
-			}
-	
-			$old_structure_data = [];
-			foreach($all_templates_per_lloc as $key => $data) {
-				if (strpos($key, 'tmpl_') === 0) {
-					$old_structure_data[$key] = $data;
-				} else {
-					// Preservem les dades que ja estan en el format nou
-					$migrated_templates[$key] = $data;
-				}
-			}
-			
-			// Assignem totes les plantilles antigues al primer lloc disponible
-			if (!isset($migrated_templates[$first_lloc_slug])) {
-				$migrated_templates[$first_lloc_slug] = [];
-			}
-			$migrated_templates[$first_lloc_slug] = array_merge($migrated_templates[$first_lloc_slug], $old_structure_data);
-			
-			// Desem la nova estructura i actualitzem la variable local
-			update_option('sportic_unfile_plantilles', $migrated_templates);
-			$all_templates_per_lloc = $migrated_templates;
-		}
-	
-		// Retornem les plantilles del lloc sol·licitat
-		return isset($all_templates_per_lloc[$lloc_slug]) && is_array($all_templates_per_lloc[$lloc_slug]) ? $all_templates_per_lloc[$lloc_slug] : [];
-	}	
-	/**
-	* Helper: Desa l'array complet de plantilles
-	*/
-function sportic_unfile_save_plantilles($lloc_slug, $templates_for_lloc) {
+		// Retorna directament les plantilles per al lloc sol·licitat.
+		return $all_templates_per_lloc[$lloc_slug] ?? [];
+	}
+				
+	function sportic_unfile_save_plantilles($lloc_slug, $templates_for_lloc) {
 		if (empty($lloc_slug) || !is_array($templates_for_lloc)) {
 			return false;
 		}
@@ -5113,66 +6204,74 @@ function sportic_unfile_save_plantilles($lloc_slug, $templates_for_lloc) {
 	
 		update_option('sportic_unfile_plantilles', $all_templates_per_lloc);
 		return true;
-	}	
+	}
+	
 	/**
 	* Pàgina principal de Plantilles: Llista i botons
 	*/
 function sportic_unfile_plantilles_page() {
-		if (!current_user_can('manage_options')) {
-			wp_die("No tens permisos suficients");
+	if (!current_user_can('manage_options')) {
+		wp_die("No tens permisos suficients");
+	}
+	
+	$lloc_actiu_slug = isset($_GET['lloc']) ? sanitize_key($_GET['lloc']) : '';
+	
+	if (empty($lloc_actiu_slug) && function_exists('sportllocs_get_llocs')) {
+		$tots_els_llocs = sportllocs_get_llocs();
+		if (count($tots_els_llocs) === 1) {
+			$lloc_actiu_slug = key($tots_els_llocs); 
+			$_GET['lloc'] = $lloc_actiu_slug; 
+		}
+	}
+	
+	if (empty($lloc_actiu_slug)) {
+		if (!function_exists('sportllocs_get_llocs')) {
+			echo '<div class="wrap"><div class="notice notice-error"><p>Error: El plugin de configuració de Llocs no està actiu. Si us plau, activa\'l per continuar.</p></div></div>';
+			return;
 		}
 	
-		$lloc_actiu_slug = isset($_GET['lloc']) ? sanitize_key($_GET['lloc']) : '';
+		$tots_els_llocs = sportllocs_get_llocs();
+		$camí_imatge_logo = plugin_dir_url(__FILE__) . 'imatges/logo.png';
+		?>
+		<div class="wrap sportic-lloc-selector-page">
+			<header class="sportic-selector-header">
+				<img src="<?php echo esc_url($camí_imatge_logo); ?>" alt="Logo SporTIC" class="sportic-selector-logo"/>
+				<h1>Gestió de Plantilles</h1>
+				<p class="sportic-selector-subtitle">Selecciona un lloc per gestionar les seves plantilles d'horaris.</p>
+			</header>
 	
-		// Si no hi ha cap lloc seleccionat, mostrem el selector de llocs
-		if (empty($lloc_actiu_slug)) {
-			if (!function_exists('sportllocs_get_llocs')) {
-				echo '<div class="wrap"><div class="notice notice-error"><p>Error: El plugin de configuració de Llocs no està actiu. Si us plau, activa\'l per continuar.</p></div></div>';
-				return;
-			}
-	
-			$tots_els_llocs = sportllocs_get_llocs();
-			$camí_imatge_logo = plugin_dir_url(__FILE__) . 'imatges/logo.png';
-			?>
-			<div class="wrap sportic-lloc-selector-page">
-				<header class="sportic-selector-header">
-					<img src="<?php echo esc_url($camí_imatge_logo); ?>" alt="Logo SporTIC" class="sportic-selector-logo"/>
-					<h1>Gestió de Plantilles</h1>
-					<p class="sportic-selector-subtitle">Selecciona un lloc per gestionar les seves plantilles d'horaris.</p>
-				</header>
-	
-				<?php if (empty($tots_els_llocs)): ?>
-					<div class="sportic-no-llocs-message">
-						<span class="dashicons dashicons-warning"></span>
-						<p><strong>No s'han trobat llocs configurats.</strong></p>
-						<p>Per poder crear plantilles, primer has de configurar un lloc a <a href="<?php echo esc_url(admin_url('admin.php?page=sportllocs-config-manage')); ?>">Configuració de Llocs i Pavellons</a>.</p>
-					</div>
-				<?php else: ?>
-					<main class="sportic-lloc-grid">
-						<?php foreach ($tots_els_llocs as $slug => $data): 
-							$url_lloc = admin_url('admin.php?page=sportic-onefile-templates&lloc=' . esc_attr($slug));
-							$image_id = $data['image_id'] ?? 0;
-							$image_url = $image_id ? wp_get_attachment_image_url($image_id, 'medium') : '';
-						?>
-							<a href="<?php echo esc_url($url_lloc); ?>" class="sportic-lloc-card">
-								<div class="sportic-lloc-card-image">
-									<?php if ($image_url): ?>
-										<img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($data['name']); ?>">
-									<?php else: ?>
-										<span class="dashicons dashicons-admin-multisite"></span>
-									<?php endif; ?>
-								</div>
-								<div class="sportic-lloc-card-content">
-									<h2><?php echo esc_html($data['name']); ?></h2>
-								</div>
-								<div class="sportic-lloc-card-arrow">
-									<span class="dashicons dashicons-arrow-right-alt2"></span>
-								</div>
-							</a>
-						<?php endforeach; ?>
-					</main>
-				<?php endif; ?>
-			</div>
+			<?php if (empty($tots_els_llocs)): ?>
+				<div class="sportic-no-llocs-message">
+					<span class="dashicons dashicons-warning"></span>
+					<p><strong>No s'han trobat llocs configurats.</strong></p>
+					<p>Per poder crear plantilles, primer has de configurar un lloc a <a href="<?php echo esc_url(admin_url('admin.php?page=sportllocs-config-manage')); ?>">Configuració de Llocs i Pavellons</a>.</p>
+				</div>
+			<?php else: ?>
+				<main class="sportic-lloc-grid">
+					<?php foreach ($tots_els_llocs as $slug => $data): 
+						$url_lloc = admin_url('admin.php?page=sportic-onefile-templates&lloc=' . esc_attr($slug));
+						$image_id = $data['image_id'] ?? 0;
+						$image_url = $image_id ? wp_get_attachment_image_url($image_id, 'medium') : '';
+					?>
+						<a href="<?php echo esc_url($url_lloc); ?>" class="sportic-lloc-card">
+							<div class="sportic-lloc-card-image">
+								<?php if ($image_url): ?>
+									<img src="<?php echo esc_url($image_url); ?>" alt="<?php echo esc_attr($data['name']); ?>">
+								<?php else: ?>
+									<span class="dashicons dashicons-admin-multisite"></span>
+								<?php endif; ?>
+							</div>
+							<div class="sportic-lloc-card-content">
+								<h2><?php echo esc_html($data['name']); ?></h2>
+							</div>
+							<div class="sportic-lloc-card-arrow">
+								<span class="dashicons dashicons-arrow-right-alt2"></span>
+							</div>
+						</a>
+					<?php endforeach; ?>
+				</main>
+			<?php endif; ?>
+		</div>
 			<style>
 				#wpbody-content { background-color: #f0f2f5; }
 				.sportic-lloc-selector-page { max-width: 1200px; margin: 40px auto; padding: 20px; }
@@ -5196,10 +6295,9 @@ function sportic_unfile_plantilles_page() {
 				.sportic-no-llocs-message p { margin: 5px 0 0; font-size: 1.1em; color: #475569; }
 			</style>
 			<?php
-			return; // Aturem l'execució aquí
+			return;
 		}
 	
-		// Si SÍ que tenim un lloc seleccionat, continuem amb la lògica de gestió
 		$lloc_actiu_nom = 'Lloc desconegut';
 		if (function_exists('sportllocs_get_llocs')) {
 			$tots_els_llocs = sportllocs_get_llocs();
@@ -5271,7 +6369,11 @@ function sportic_unfile_plantilles_page() {
 		if (($action === 'edit' && isset($_GET['tmpl_id']) && isset($plantilles[$_GET['tmpl_id']])) || $action === 'new') {
 			$tmpl_id_edit = ($action === 'edit') ? sanitize_text_field($_GET['tmpl_id']) : '';
 			$tmpl_data_edit = ($action === 'edit' && isset($plantilles[$tmpl_id_edit])) ? $plantilles[$tmpl_id_edit] : null;
-			sportic_unfile_mostrar_form_plantilla($tmpl_id_edit, $tmpl_data_edit); 
+	
+			// <-- INICI DE LA CORRECCIÓ: Passem el 'lloc_actiu_slug' a la funció del formulari -->
+			sportic_unfile_mostrar_form_plantilla($tmpl_id_edit, $tmpl_data_edit, $lloc_actiu_slug);
+			// <-- FI DE LA CORRECCIÓ -->
+	
 			sportic_unfile_output_inline_css(); 
 			sportic_unfile_output_inline_js();
 			echo '</div>'; 
@@ -5444,19 +6546,13 @@ function sportic_unfile_plantilles_page() {
 		sportic_unfile_output_inline_js();
 		echo '</div>';
 	}
-			
+	
+		
 	/**
 	* Formulari (CREAR / EDITAR) bàsic (Nom, Tipus i, si escau, piscina).
 	*/
-function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null) {
+function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null, $lloc_slug = '') {
 		$action = isset($_GET['tmpl_action']) ? sanitize_text_field($_GET['tmpl_action']) : '';
-		$lloc_slug = isset($_GET['lloc']) ? sanitize_key($_GET['lloc']) : '';
-	
-		if (empty($lloc_slug)) {
-			echo '<div class="wrap"><div class="notice notice-error"><p>Error: No s\'ha especificat un lloc per a aquesta plantilla. Si us plau, torna al selector.</p><p><a href="' . esc_url(admin_url('admin.php?page=sportic-onefile-templates')) . '" class="button">Tornar al selector de llocs</a></p></div></div>';
-			return;
-		}
-		
 		if (empty($tmpl_id) && $action !== 'new') { $action = 'new'; }
 	
 		if ( isset($_GET['error_msg']) && ! empty($_GET['error_msg']) ) {
@@ -5476,18 +6572,36 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 	
 		?>
 		<style>
-			.sportic-edit-template-page .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 30px; padding: 35px 40px; max-width: 1000px; margin-left: auto; margin-right: auto; transition: max-width 0.3s ease-in-out; }
-			.sportic-edit-template-page .card.card-full-width-mode { max-width: none; }
+			.sportic-edit-template-page .card { 
+				background: #fff; 
+				border-radius: 12px; 
+				box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+				margin-bottom: 30px; 
+				padding: 35px 40px; 
+				max-width: 1000px; 
+				margin-left: auto; 
+				margin-right: auto;
+				transition: max-width 0.3s ease-in-out; 
+			}
+			.sportic-edit-template-page .card.card-full-width-mode {
+				max-width: none; 
+			}
 			.sportic-edit-template-page .title { font-size: 22px; margin: 0 0 25px 0; color: #1a1a1a; padding-bottom: 15px; border-bottom: 2px solid #f0f0f1; }
 			.sportic-edit-template-page .form-table th { width: 150px; padding-top: 15px; }
 			.sportic-edit-template-page .form-table td { padding-top: 10px; }
 			.sportic-edit-template-page .form-table input[type="text"],
 			.sportic-edit-template-page .form-table select { min-width: 350px; }
 			.sportic-edit-template-page .nav-tab-wrapper { margin-bottom: 0 !important; }
-			.sportic-edit-template-page #template-schedule-editor-content-area .sportic-tab-content { border-top-left-radius: 0; border-top-right-radius: 0; }
-			.sportic-edit-template-page #template-schedule-editor-content-area #sportic-plantilla-day-editor-content > .sportic-tab-content { border-top-left-radius: 0; border-top-right-radius: 0; }
+			.sportic-edit-template-page #template-schedule-editor-content-area .sportic-tab-content {
+				border-top-left-radius: 0; border-top-right-radius: 0;
+			}
+			.sportic-edit-template-page #template-schedule-editor-content-area #sportic-plantilla-day-editor-content > .sportic-tab-content {
+				border-top-left-radius: 0; border-top-right-radius: 0;
+			}
 			.sportic-edit-template-page #template-schedule-editor-content-area .sportic-week-day-pane .nav-tab-wrapper { margin-top: 15px; }
-			.sportic-edit-template-page #template-schedule-editor-content-area .sportic-week-day-pane .sportic-sub-tabs + .sportic-subtabs-container .sportic-tab-content { border-top-left-radius: 0; border-top-right-radius: 0; }
+			.sportic-edit-template-page #template-schedule-editor-content-area .sportic-week-day-pane .sportic-sub-tabs + .sportic-subtabs-container .sportic-tab-content {
+				border-top-left-radius: 0; border-top-right-radius: 0;
+			}
 			.sportic-edit-template-page .submit-final-container { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: right; }
 			.sportic-edit-template-page .submit-final-container .button-primary { font-size: 1.1em; padding: 10px 20px; }
 			.sportic-edit-template-page .notice.is-dismissible { cursor: pointer; }
@@ -5508,20 +6622,20 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 		<?php
 	
 		echo '<div class="wrap sportic-unfile-admin sportic-edit-template-page">'; 
-		
-		echo '<a href="' . esc_url(admin_url('admin.php?page=sportic-onefile-templates&lloc=' . $lloc_slug)) . '" style="text-decoration: none; margin-bottom: 20px; display: inline-block;">&larr; Torna al llistat de plantilles</a>';
-		
 		echo '<h1 class="sportic-title">' . (($isEdit) ? '✏️ Editar Plantilla' : '➕ Crear Nova Plantilla') . '</h1>';
 		
 		echo '<form id="sportic-template-full-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
 			echo '<input type="hidden" name="action" value="sportic_unfile_guardar_plantilla_completa" />';
-			echo '<input type="hidden" name="lloc" value="' . esc_attr($lloc_slug) . '" />';
 			if($isEdit) {
 				echo '<input type="hidden" name="tmpl_id" value="' . esc_attr($tmpl_id) . '" />';
 			}
 			wp_nonce_field('sportic_save_full_template_action', 'sportic_save_full_template_nonce');
 	
-			echo '<div class="card">';
+			// <-- INICI DE LA CORRECCIÓ: Afegim el camp ocult per al 'lloc' -->
+			echo '<input type="hidden" name="lloc" value="' . esc_attr($lloc_slug) . '" />';
+			// <-- FI DE LA CORRECCIÓ -->
+	
+			echo '<div class="card">'; 
 				echo '<h2 class="title">Informació Bàsica de la Plantilla</h2>';
 				echo '<table class="form-table">';
 					echo '<tr>';
@@ -5543,16 +6657,13 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 						echo '<th><label for="tmpl_piscina">Pavelló (per tipus "Individual"):</label></th>';
 						echo '<td>';
 							echo '<select id="tmpl_piscina" name="tmpl_piscina">';
-							
-							// Important: Mostrem només els pavellons del LLOC ACTIU
-							$configured_pools_options = function_exists('sportllocs_get_pavellons_by_lloc') ? sportllocs_get_pavellons_by_lloc($lloc_slug) : sportic_unfile_get_pool_labels_sorted();
-							
+							$configured_pools_options = sportic_unfile_get_pool_labels_sorted();
 							if (!empty($configured_pools_options)) {
 								foreach($configured_pools_options as $slug_opt => $pool_info_opt) {
 									echo '<option value="' . esc_attr($slug_opt) . '" data-lanes="'.esc_attr($pool_info_opt['lanes'] ?? 4).'" ' . selected($piscina_single_selected_on_load, $slug_opt, false) . '>' . esc_html($pool_info_opt['label']) . '</option>';
 								}
 							} else {
-								echo '<option value="">-- No hi ha pavellons per a aquest lloc --</option>';
+								echo '<option value="infantil" data-lanes="1" ' . selected($piscina_single_selected_on_load, 'infantil', false) . '>Infantil</option>';
 							}
 							echo '</select>';
 						echo '</td>';
@@ -5608,7 +6719,7 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 						if(wrapper) { wrapper.querySelectorAll('.nav-tab').forEach(function(t){ t.classList.remove('nav-tab-active'); });}
 						dayEditorContent.querySelectorAll('.sportic-tab-content').forEach(function(content){ content.style.display = 'none'; });
 						tab.classList.add('nav-tab-active');
-						activePoolSlug = tab.getAttribute('href').replace('#tmpl_day_pool_', '');
+						activePoolSlug = tab.getAttribute('href').replace('#tmpl_day_pool_', ''); 
 						var targetSelector = tab.getAttribute('href');
 						var targetContent = dayEditorContent.querySelector(targetSelector);
 						if(targetContent) { targetContent.style.display = 'block'; }
@@ -5634,7 +6745,7 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 			if (!weekEditorContent) return;
 			if (weekEditorContent.dataset.tabsInitialized === 'true') return;
 	
-			var activeDayIndexForWeek = 0;
+			var activeDayIndexForWeek = 0; 
 			var activePoolSlugForWeek = null;
 	
 			var topTabLinks = weekEditorContent.querySelectorAll('.sportic-top-tabs > .nav-tab');
@@ -5654,7 +6765,7 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 						if (firstSubTabInDay) { 
 							setTimeout(() => { 
 								if(firstSubTabInDay) {
-									firstSubTabInDay.click();
+									firstSubTabInDay.click(); 
 								}
 							}, 0); 
 						}
@@ -5680,7 +6791,7 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 			
 			var firstTopTab = weekEditorContent.querySelector('.sportic-top-tabs > .nav-tab:first-child');
 			if (firstTopTab && !weekEditorContent.querySelector('.sportic-top-tabs > .nav-tab.nav-tab-active')) {
-				 setTimeout(() => { if(firstTopTab) firstTopTab.click(); }, 0);
+				 setTimeout(() => { if(firstTopTab) firstTopTab.click(); }, 0); 
 			} else {
 				var activeTopTabLink = weekEditorContent.querySelector('.sportic-top-tabs > .nav-tab.nav-tab-active');
 				if (activeTopTabLink) {
@@ -5727,25 +6838,23 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 	
 			var needsFullWidth = false;
 			if (activePoolSlug) {
-				var lanes = 4;
-				
-				var allPoolOptions = document.querySelectorAll('#tmpl_piscina option');
-				var poolOption = Array.from(allPoolOptions).find(opt => opt.value === activePoolSlug);
-				
-				if (!poolOption) {
-					var dayEditorTables = document.querySelectorAll('#sportic-plantilla-day-editor-content table[data-piscina]');
-					var weekEditorTables = document.querySelectorAll('#sportic-plantilla-week-editor-content table[data-piscina]');
-					var allTables = [...dayEditorTables, ...weekEditorTables];
-					
-					var foundTable = allTables.find(tbl => tbl.dataset.piscina.endsWith('_' + activePoolSlug));
-					if (foundTable) {
-						var headerCells = foundTable.querySelectorAll('thead th');
-						lanes = headerCells.length > 1 ? headerCells.length - 1 : 4;
-					}
-				} else if (poolOption.dataset.lanes) {
-					lanes = parseInt(poolOption.dataset.lanes, 10);
-				}
+				var lanes = 4; 
+				var poolSelectElement = document.getElementById('tmpl_piscina');
 	
+				if (currentEditorType === 'single' && poolSelectElement) {
+					var selectedOption = poolSelectElement.querySelector('option[value="' + activePoolSlug + '"]');
+					if (selectedOption && selectedOption.dataset.lanes) {
+						lanes = parseInt(selectedOption.dataset.lanes, 10);
+					}
+				} else {
+					if (activePoolSlug.includes('p12_20')) {
+						lanes = 20;
+					} else if (activePoolSlug.includes('p6')) {
+						 lanes = 6;
+					} else if (activePoolSlug.includes('p4')) {
+						 lanes = 4;
+					}
+				}
 				if (lanes > 6) {
 					needsFullWidth = true;
 				}
@@ -5832,7 +6941,7 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 						} else if (selectedType === 'day' || selectedType === 'week') {
 							var firstActivePoolTab;
 							if (selectedType === 'day') {
-								firstActivePoolTab = actualEditorWrapper.querySelector('.nav-tab-wrapper .nav-tab');
+								firstActivePoolTab = actualEditorWrapper.querySelector('.nav-tab-wrapper .nav-tab'); 
 								if(firstActivePoolTab) updateCardWidthMode('day', firstActivePoolTab.getAttribute('href').replace('#tmpl_day_pool_', ''));
 							}
 						}
@@ -5857,7 +6966,7 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 					} else {
 						scheduleEditorCardWrapper.style.display = 'none';
 						 currentEditorType = null; 
-						 scheduleEditorCardWrapper.classList.remove('card-full-width-mode');
+						 scheduleEditorCardWrapper.classList.remove('card-full-width-mode'); 
 						 scheduleEditorCardWrapper.dataset.needsFullWidth = "false";
 					}
 				}
@@ -5871,7 +6980,7 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 			if (piscinaSelect) { 
 				 piscinaSelect.addEventListener('change', function() {
 					if (tmplTypeSelect && tmplTypeSelect.value === 'single') { 
-						window.updateSinglePoolEditorViewGlobal(this.value);
+						window.updateSinglePoolEditorViewGlobal(this.value); 
 					}
 				 });
 			}
@@ -5954,7 +7063,8 @@ function sportic_unfile_mostrar_form_plantilla($tmpl_id = '', $tmpl_data = null)
 		</script>
 		<?php
 		echo '</div>'; 
-	}	
+	}
+		
 	
 	/**
 	* Formulari intern per a "day".
@@ -6399,32 +7509,24 @@ function sportic_unfile_aplicar_plantilla_cb() {
 		wp_die('Error de seguretat (Nonce invàlid). Si us plau, torna enrere i intenta-ho de nou.');
 	}
 
-	if (!current_user_can('manage_options')) {
-		wp_die('No tens permisos per realitzar aquesta acció.');
-	}
+	// <-- INICI DE LA CORRECCIÓ: Recollim el lloc actiu per a la redirecció I per a la lògica -->
+	$lloc_actiu = !empty($_POST['lloc']) ? sanitize_key($_POST['lloc']) : '';
 
-	// ================================================================
-	// INICI DE LA CORRECCIÓ
-	// ================================================================
-	// Obtenim el 'lloc' des del formulari. Aquest pas és crucial.
-	$lloc_actiu_slug = isset($_POST['lloc']) ? sanitize_key($_POST['lloc']) : '';
+	$redirect_params = [];
+	if (!empty($lloc_actiu)) $redirect_params['lloc'] = $lloc_actiu;
+	// <-- FI DE LA CORRECCIó -->
 
-	// Preparem els paràmetres per a la redirecció, incloent el lloc
-	$redirect_params = ['lloc' => $lloc_actiu_slug];
 	if (!empty($_POST['selected_date'])) $redirect_params['selected_date'] = sanitize_text_field($_POST['selected_date']);
 	if (!empty($_POST['cal_year']))      $redirect_params['cal_year'] = intval($_POST['cal_year']);
 	if (!empty($_POST['cal_month']))     $redirect_params['cal_month'] = intval($_POST['cal_month']);
 	if (!empty($_POST['sportic_active_tab'])) $redirect_params['active_tab'] = sanitize_text_field($_POST['sportic_active_tab']);
 	if (!empty($_POST['sportic_active_subday'])) $redirect_params['active_subday'] = sanitize_text_field($_POST['sportic_active_subday']);
-	
-	if (empty($lloc_actiu_slug)) {
-		$redirect_params['error_msg'] = urlencode('Error crític: No s\'ha pogut determinar el lloc per aplicar la plantilla.');
+
+	if (!current_user_can('manage_options')) {
+		$redirect_params['error_msg'] = urlencode('No tens permisos per realitzar aquesta acció.');
 		wp_redirect(add_query_arg($redirect_params, admin_url('admin.php?page=sportic-onefile-menu')));
 		exit;
 	}
-	// ================================================================
-	// FI DE LA CORRECCIÓ
-	// ================================================================
 
 	// 2. Recollida i Validació de Dades del Formulari
 	$ignore_lock     = isset($_POST['ignore_lock_template']) && $_POST['ignore_lock_template'] === '1';
@@ -6444,17 +7546,12 @@ function sportic_unfile_aplicar_plantilla_cb() {
 	$plantilla_type_from_option = $parts[1] ?? '';
 	$selected_pool_for_single = ($plantilla_type_from_option === 'single' && isset($parts[2])) ? $parts[2] : '';
 
-	// ================================================================
-	// INICI DE LA CORRECCIÓ (aquí estava l'error)
-	// ================================================================
-	// Ara passem el 'lloc_actiu_slug' a la funció per carregar les plantilles correctes.
-	$plantilles_guardades = sportic_unfile_get_plantilles($lloc_actiu_slug);
-	// ================================================================
-	// FI DE LA CORRECCIÓ
-	// ================================================================
+	// <-- INICI DE LA CORRECCIÓ: Passem el 'lloc_actiu' a la funció -->
+	$plantilles_guardades = sportic_unfile_get_plantilles($lloc_actiu);
+	// <-- FI DE LA CORRECCIÓ -->
 
 	if (!isset($plantilles_guardades[$tmpl_id])) {
-		$redirect_params['error_msg'] = urlencode('La plantilla seleccionada no existeix en aquest lloc.');
+		$redirect_params['error_msg'] = urlencode('La plantilla seleccionada no existeix.');
 		wp_redirect(add_query_arg($redirect_params, admin_url('admin.php?page=sportic-onefile-menu')));
 		exit;
 	}
@@ -6613,7 +7710,7 @@ function sportic_unfile_aplicar_plantilla_cb() {
 				$redirect_params['warning_msg'] = urlencode('La plantilla s\'ha aplicat, però l\'operació ha sigut massa gran per desar un punt de restauració (Desfer).');
 			}
 		} else {
-			$undo_entry_saved = true;
+			$undo_entry_saved = true; 
 		}
 		
 		sportic_emmagatzemar_tot_com_array($dades_a_modificar_amb_plantilla); 
@@ -6624,7 +7721,7 @@ function sportic_unfile_aplicar_plantilla_cb() {
 		
 	} else {
 		if (!isset($redirect_params['error_msg'])) { 
-			$redirect_params['status'] = 'ok';
+			$redirect_params['status'] = 'ok'; 
 			$redirect_params['info_msg'] = urlencode('La plantilla no ha produït canvis en el rang de dates especificat (potser les dades ja eren iguals o totes les cel·les afectades estaven bloquejades i no s\'ha ignorat el bloqueig).');
 		}
 	}
@@ -6632,7 +7729,8 @@ function sportic_unfile_aplicar_plantilla_cb() {
 	// 6. Redirecció
 	wp_redirect(add_query_arg($redirect_params, admin_url('admin.php?page=sportic-onefile-menu')));
 	exit;
-}		
+}
+
 		/**
 		* SHORTCODE FRONTEND [sportic_frontend_custom_dayview]
 		*/
@@ -6954,7 +8052,8 @@ function sportic_unfile_get_pool_labels_sorted() {
 		
 		// Si la funció per obtenir pavellons per lloc no existís, retornem un array buit.
 		return [];
-	}		
+	}
+	
 			
 	/**
 	* Evita que es mostrin notices d’altres plugins/WordPress
@@ -7394,223 +8493,233 @@ function sportic_unfile_get_pool_labels_sorted() {
 		
 			
 function sportic_frontend_custom_dayview_subitems_shortcode() {
-	$diesSetmanaCat = ['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
-	$data_seleccionada = isset($_GET['sc_date']) ? sanitize_text_field($_GET['sc_date']) : date('Y-m-d');
-	try {
-		$objecteData = new DateTime($data_seleccionada);
-	} catch (Exception $e) {
-		$objecteData = new DateTime();
-	}
-	$data_seleccionada = $objecteData->format('Y-m-d');
-	$nom_dia_actual = $diesSetmanaCat[(int) $objecteData->format('w')];
-	$piscines = sportic_unfile_get_pool_labels_sorted();
-	if (empty($piscines)) {
-		return '<div class="sportic-week-shell">' . esc_html__('Ara mateix no hi ha pavellons configurats.', 'sportic') . '</div>';
-	}
-	$schedule_window = sportic_carregar_finestra_bd($data_seleccionada, 6, 0);
-	$palette = sportic_get_activity_palette();
-	$dies = [];
-	$legend_keys = ['l', 'b'];
-	$temp = clone $objecteData;
-	for ($i = 0; $i < 7; $i++) {
-		$dia_actual = $temp->format('Y-m-d');
-		$sessions_per_piscina = sportic_build_day_sessions($schedule_window, $piscines, $dia_actual);
-		$fitxa_dia = [
-			'date'    => $dia_actual,
-			'day_name'=> $diesSetmanaCat[(int) $temp->format('w')],
-			'label'   => $temp->format('d/m'),
-			'pools'   => [],
-		];
-		foreach ($piscines as $slug => $info) {
-			$pool_sessions = $sessions_per_piscina[$slug] ?? [];
-			$target_sessions = [];
-			foreach ($pool_sessions as $sessio) {
-				if (strtolower($sessio['value']) === 'l') {
-					continue;
-				}
-				$legend_key = array_key_exists($sessio['value'], $palette) ? $sessio['value'] : $sessio['label'];
-				$legend_keys[] = $legend_key;
-				$target_sessions[] = $sessio;
-			}
-			$fitxa_dia['pools'][$slug] = [
-				'label'    => $info['label'],
-				'sessions' => $target_sessions,
+		$diesSetmanaCat = ['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
+		$data_seleccionada = isset($_GET['sc_date']) ? sanitize_text_field($_GET['sc_date']) : date('Y-m-d');
+		try {
+			$objecteData = new DateTime($data_seleccionada);
+		} catch (Exception $e) {
+			$objecteData = new DateTime();
+		}
+		$data_seleccionada = $objecteData->format('Y-m-d');
+		$nom_dia_actual = $diesSetmanaCat[(int) $objecteData->format('w')];
+		$piscines = sportic_unfile_get_pool_labels_sorted();
+		if (empty($piscines)) {
+			return '<div class="sportic-week-shell">' . esc_html__('Ara mateix no hi ha pavellons configurats.', 'sportic') . '</div>';
+		}
+		$schedule_window = sportic_carregar_finestra_bd($data_seleccionada, 6, 0);
+		$palette = sportic_get_activity_palette();
+		$dies = [];
+		$legend_keys = ['l', 'b'];
+		$temp = clone $objecteData;
+		for ($i = 0; $i < 7; $i++) {
+			$dia_actual = $temp->format('Y-m-d');
+			$sessions_per_piscina = sportic_build_day_sessions($schedule_window, $piscines, $dia_actual);
+			$fitxa_dia = [
+				'date'    => $dia_actual,
+				'day_name'=> $diesSetmanaCat[(int) $temp->format('w')],
+				'label'   => $temp->format('d/m'),
+				'pools'   => [],
 			];
+			foreach ($piscines as $slug => $info) {
+				$pool_sessions = $sessions_per_piscina[$slug] ?? [];
+				$target_sessions = [];
+				foreach ($pool_sessions as $sessio) {
+					if (strtolower($sessio['value']) === 'l') {
+						continue;
+					}
+					$legend_key = array_key_exists($sessio['value'], $palette) ? $sessio['value'] : $sessio['label'];
+					$legend_keys[] = $legend_key;
+					$target_sessions[] = $sessio;
+				}
+				$fitxa_dia['pools'][$slug] = [
+					'label'    => $info['label'],
+					'sessions' => $target_sessions,
+				];
+			}
+			$dies[] = $fitxa_dia;
+			$temp->modify('+1 day');
 		}
-		$dies[] = $fitxa_dia;
-		$temp->modify('+1 day');
-	}
-	$legend_keys = array_values(array_unique(array_filter($legend_keys)));
-	$legend_entries = [];
-	foreach ($legend_keys as $key) {
-		if (isset($palette[$key])) {
-			$legend_entries[$key] = $palette[$key];
+		$legend_keys = array_values(array_unique(array_filter($legend_keys)));
+		$legend_entries = [];
+		foreach ($legend_keys as $key) {
+			if (isset($palette[$key])) {
+				$legend_entries[$key] = $palette[$key];
+			}
 		}
-	}
-	if (empty($legend_entries)) {
-		$legend_entries = $palette;
-	}
-	ob_start();
-	?>
-	<style>
-	.sportic-week-shell{font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;display:flex;flex-direction:column;gap:24px;}
-	.sportic-week-header{display:flex;flex-direction:column;gap:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:20px;}
-	.sportic-week-header form{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
-	.sportic-week-header label{font-weight:600;color:#1f2937;}
-	.sportic-week-header input[type='date']{border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:0.95rem;}
-	.sportic-week-header button[type='submit']{background:#2563eb;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-weight:600;cursor:pointer;}
-	.sportic-week-header button[type='submit']:hover{background:#1d4ed8;}
-	.sportic-day-filter{display:flex;flex-wrap:wrap;gap:8px;}
-	.sportic-day-filter button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:7px 14px;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;}
-	.sportic-day-filter button.active,.sportic-day-filter button:hover{background:#1e40af;color:#fff;border-color:#1e40af;}
-	.sportic-day-grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}
-	.sportic-day-card{background:#fff;border-radius:18px;box-shadow:0 20px 50px rgba(15,23,42,0.08);padding:24px;display:flex;flex-direction:column;gap:18px;border:1px solid #e2e8f0;}
-	.sportic-day-card__header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;padding-bottom:8px;}
-	.sportic-day-card__header .day-name{font-weight:700;color:#0f172a;font-size:1rem;}
-	.sportic-day-card__header .day-date{color:#475569;font-size:0.9rem;}
-	.sportic-pool-card{border:1px solid #e2e8f0;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;background:#f9fafb;}
-	.sportic-pool-card h3{margin:0;font-size:0.95rem;font-weight:700;color:#1f2937;}
-	.sportic-session-wrapper{display:flex;flex-direction:column;gap:12px;}
-	.sportic-session-list{display:grid;gap:12px;}
-	.sportic-session-card{background:#fff;border-left:5px solid var(--session-color,#1d4ed8);border-radius:12px;padding:14px;box-shadow:0 12px 30px rgba(15,23,42,0.08);display:flex;flex-direction:column;gap:10px;}
-	.sportic-session-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(30,64,175,0.08);color:#1e3a8a;border-radius:999px;padding:4px 12px;font-size:0.75rem;font-weight:600;text-transform:uppercase;}
-	.sportic-session-time{font-weight:700;font-size:1rem;color:#0f172a;}
-	.sportic-session-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:0.85rem;color:#334155;}
-	.sportic-session-flags{display:flex;gap:8px;font-size:0.8rem;color:#475569;}
-	.sportic-session-pagination{display:none;align-items:center;justify-content:space-between;background:#fff;border-radius:999px;padding:6px 12px;border:1px solid #cbd5e1;}
-	.sportic-session-pagination button{border:none;background:none;font-weight:600;color:#1e3a8a;cursor:pointer;}
-	.sportic-session-pagination button:disabled{color:#94a3b8;cursor:not-allowed;}
-	.sportic-session-pagination.visible{display:flex;}
-	.sportic-session-empty{background:#ffffff;border:1px dashed #cbd5e1;border-radius:12px;padding:20px;text-align:center;font-size:0.9rem;color:#475569;}
-	.sportic-legend{border-top:1px solid #e2e8f0;padding-top:16px;}
-	.sportic-legend h4{margin:0 0 10px;font-size:0.95rem;font-weight:700;color:#0f172a;}
-	.sportic-legend-grid{display:flex;flex-wrap:wrap;gap:10px;}
-	.sportic-legend-chip{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid #e2e8f0;font-size:0.85rem;}
-	.sportic-legend-chip .color{width:16px;height:16px;border-radius:50%;display:block;}
-	@media(max-width:720px){.sportic-week-header{padding:16px;} .sportic-day-grid{grid-template-columns:1fr;} .sportic-pool-card{gap:16px;}}
-	</style>
-	<div class="sportic-week-shell">
-		<div class="sportic-week-header">
-			<form method="get">
-				<label for="sc_date"><?php echo esc_html__('Data inicial', 'sportic'); ?></label>
-				<input type="date" id="sc_date" name="sc_date" value="<?php echo esc_attr($data_seleccionada); ?>" />
-				<?php foreach ($_GET as $key => $value) : if ($key === 'sc_date') continue; ?>
-				<input type="hidden" name="<?php echo esc_attr($key); ?>" value="<?php echo esc_attr($value); ?>" />
-				<?php endforeach; ?>
-				<button type="submit"><?php echo esc_html__('Actualitza', 'sportic'); ?></button>
-			</form>
-			<div class="sportic-day-filter">
-				<button type="button" class="active" data-day="all"><?php echo esc_html__('Tots els dies', 'sportic'); ?></button>
-				<?php foreach ($dies as $day_info) : ?>
-				<button type="button" data-day="<?php echo esc_attr($day_info['date']); ?>"><?php echo esc_html($day_info['day_name'] . ' ' . $day_info['label']); ?></button>
-				<?php endforeach; ?>
-			</div>
-			<p style="margin:0;color:#475569;font-size:0.85rem;"><?php echo esc_html__('Fes servir els botons per filtrar per dia i consulta cada pavelló amb claredat.', 'sportic'); ?></p>
-		</div>
-		<div class="sportic-day-grid">
-		<?php foreach ($dies as $day_info) : ?>
-			<article class="sportic-day-card" data-day="<?php echo esc_attr($day_info['date']); ?>">
-				<header class="sportic-day-card__header">
-					<span class="day-name"><?php echo esc_html($day_info['day_name']); ?></span>
-					<span class="day-date"><?php echo esc_html($day_info['label']); ?></span>
-				</header>
-				<div class="sportic-day-card__content">
-				<?php foreach ($piscines as $slug => $info) : $pool_sessions = $day_info['pools'][$slug]['sessions']; ?>
-					<section class="sportic-pool-card">
-						<h3><?php echo esc_html($info['label']); ?></h3>
-						<?php if (!empty($pool_sessions)) : ?>
-							<div class="sportic-session-wrapper">
-								<div class="sportic-session-list" data-page-size="6">
-								<?php foreach ($pool_sessions as $sessio) : ?>
-									<div class="sportic-session-card" style="--session-color: <?php echo esc_attr($sessio['color']); ?>;">
-										<span class="sportic-session-chip"><?php echo esc_html($sessio['badge']); ?></span>
-										<div class="sportic-session-time"><?php echo esc_html($sessio['start'] . ' - ' . $sessio['end']); ?> · <?php echo esc_html(sportic_format_duration_label($sessio['duration'])); ?></div>
-										<div class="sportic-session-meta">
-											<span><?php echo esc_html__('Pista', 'sportic'); ?>: <?php echo esc_html($sessio['lane']); ?></span>
-											<?php if (!empty($sessio['sub_label'])) : ?><span><?php echo esc_html__('Subgrup', 'sportic'); ?>: <?php echo esc_html($sessio['sub_label']); ?></span><?php endif; ?>
-										</div>
-										<?php if ($sessio['locked'] || $sessio['recurrent']) : ?>
-										<div class="sportic-session-flags">
-											<?php if ($sessio['recurrent']) : ?><span>⟳ <?php echo esc_html__('Esdeveniment recurrent', 'sportic'); ?></span><?php endif; ?>
-											<?php if ($sessio['locked']) : ?><span>🔒 <?php echo esc_html__('Bloqueig manual', 'sportic'); ?></span><?php endif; ?>
-										</div>
-										<?php endif; ?>
-									</div>
-								<?php endforeach; ?>
-								</div>
-								<div class="sportic-session-pagination" aria-hidden="true">
-									<button type="button" data-action="prev"><?php echo esc_html__('Anterior', 'sportic'); ?></button>
-									<span class="current-page">1 / 1</span>
-									<button type="button" data-action="next"><?php echo esc_html__('Següent', 'sportic'); ?></button>
-								</div>
-							</div>
-						<?php else : ?>
-							<div class="sportic-session-empty"><?php echo esc_html__('Cap sessió programada. Totes les pistes lliures.', 'sportic'); ?></div>
-						<?php endif; ?>
-					</section>
-				<?php endforeach; ?>
+		if (empty($legend_entries)) {
+			$legend_entries = $palette;
+		}
+		ob_start();
+		?>
+		<style>
+		.sportic-week-shell{font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;display:flex;flex-direction:column;gap:24px;}
+		.sportic-week-header{display:flex;flex-direction:column;gap:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:20px;}
+		.sportic-week-header form{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
+		.sportic-week-header label{font-weight:600;color:#1f2937;}
+		.sportic-week-header input[type='date']{border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:0.95rem;}
+		.sportic-week-header button[type='submit']{background:#2563eb;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-weight:600;cursor:pointer;}
+		.sportic-week-header button[type='submit']:hover{background:#1d4ed8;}
+		.sportic-day-filter{display:flex;flex-wrap:wrap;gap:8px;}
+		.sportic-day-filter button{border:1px solid #cbd5e1;background:#fff;color:#1e293b;border-radius:999px;padding:7px 14px;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;}
+		.sportic-day-filter button.active,.sportic-day-filter button:hover{background:#1e40af;color:#fff;border-color:#1e40af;}
+		.sportic-day-grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}
+		.sportic-day-card{background:#fff;border-radius:18px;box-shadow:0 20px 50px rgba(15,23,42,0.08);padding:24px;display:flex;flex-direction:column;gap:18px;border:1px solid #e2e8f0;}
+		.sportic-day-card__header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;padding-bottom:8px;}
+		.sportic-day-card__header .day-name{font-weight:700;color:#0f172a;font-size:1rem;}
+		.sportic-day-card__header .day-date{color:#475569;font-size:0.9rem;}
+		.sportic-pool-card{border:1px solid #e2e8f0;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;background:#f9fafb;}
+		.sportic-pool-card h3{margin:0;font-size:0.95rem;font-weight:700;color:#1f2937;}
+		.sportic-session-wrapper{display:flex;flex-direction:column;gap:12px;}
+		.sportic-session-list{display:grid;gap:12px;}
+		.sportic-session-card{background:#fff;border-left:5px solid var(--session-color,#1d4ed8);border-radius:12px;padding:14px;box-shadow:0 12px 30px rgba(15,23,42,0.08);display:flex;flex-direction:column;gap:10px;}
+		.sportic-session-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(30,64,175,0.08);color:#1e3a8a;border-radius:999px;padding:4px 12px;font-size:0.75rem;font-weight:600;text-transform:uppercase;}
+		.sportic-session-time{font-weight:700;font-size:1rem;color:#0f172a;}
+		.sportic-session-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:0.85rem;color:#334155;}
+		.sportic-session-flags{display:flex;gap:8px;font-size:0.8rem;color:#475569;}
+		.sportic-session-pagination{display:none;align-items:center;justify-content:space-between;background:#fff;border-radius:999px;padding:6px 12px;border:1px solid #cbd5e1;}
+		.sportic-session-pagination button{border:none;background:none;font-weight:600;color:#1e3a8a;cursor:pointer;}
+		.sportic-session-pagination button:disabled{color:#94a3b8;cursor:not-allowed;}
+		.sportic-session-pagination.visible{display:flex;}
+		.sportic-session-empty{background:#ffffff;border:1px dashed #cbd5e1;border-radius:12px;padding:20px;text-align:center;font-size:0.9rem;color:#475569;}
+		.sportic-legend{border-top:1px solid #e2e8f0;padding-top:16px;}
+		.sportic-legend h4{margin:0 0 10px;font-size:0.95rem;font-weight:700;color:#0f172a;}
+		.sportic-legend-grid{display:flex;flex-wrap:wrap;gap:10px;}
+		.sportic-legend-chip{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid #e2e8f0;font-size:0.85rem;}
+		.sportic-legend-chip .color{width:16px;height:16px;border-radius:50%;display:block;}
+		@media(max-width:720px){.sportic-week-header{padding:16px;} .sportic-day-grid{grid-template-columns:1fr;} .sportic-pool-card{gap:16px;}}
+		</style>
+		<div class="sportic-week-shell">
+			<div class="sportic-week-header">
+				<form method="get">
+					<label for="sc_date"><?php echo esc_html__('Data inicial', 'sportic'); ?></label>
+					<input type="date" id="sc_date" name="sc_date" value="<?php echo esc_attr($data_seleccionada); ?>" />
+					<?php foreach ($_GET as $key => $value) : if ($key === 'sc_date') continue; ?>
+					<input type="hidden" name="<?php echo esc_attr($key); ?>" value="<?php echo esc_attr($value); ?>" />
+					<?php endforeach; ?>
+					<button type="submit"><?php echo esc_html__('Actualitza', 'sportic'); ?></button>
+				</form>
+				<div class="sportic-day-filter">
+					<button type="button" class="active" data-day="all"><?php echo esc_html__('Tots els dies', 'sportic'); ?></button>
+					<?php foreach ($dies as $day_info) : ?>
+					<button type="button" data-day="<?php echo esc_attr($day_info['date']); ?>"><?php echo esc_html($day_info['day_name'] . ' ' . $day_info['label']); ?></button>
+					<?php endforeach; ?>
 				</div>
-			</article>
-		<?php endforeach; ?>
-		</div>
-		<div class="sportic-legend">
-			<h4><?php echo esc_html__('Referències', 'sportic'); ?></h4>
-			<div class="sportic-legend-grid">
-			<?php foreach ($legend_entries as $entry) : ?>
-				<span class="sportic-legend-chip"><span class="color" style="background:<?php echo esc_attr($entry['color']); ?>;"></span><?php echo esc_html($entry['label']); ?></span>
+				<p style="margin:0;color:#475569;font-size:0.85rem;"><?php echo esc_html__('Fes servir els botons per filtrar per dia i consulta cada pavelló amb claredat.', 'sportic'); ?></p>
+			</div>
+			<div class="sportic-day-grid">
+			<?php foreach ($dies as $day_info) : ?>
+				<article class="sportic-day-card" data-day="<?php echo esc_attr($day_info['date']); ?>">
+					<header class="sportic-day-card__header">
+						<span class="day-name"><?php echo esc_html($day_info['day_name']); ?></span>
+						<span class="day-date"><?php echo esc_html($day_info['label']); ?></span>
+					</header>
+					<div class="sportic-day-card__content">
+					<?php foreach ($piscines as $slug => $info) : $pool_sessions = $day_info['pools'][$slug]['sessions']; ?>
+						<section class="sportic-pool-card">
+							<h3><?php echo esc_html($info['label']); ?></h3>
+							<?php if (!empty($pool_sessions)) : ?>
+								<div class="sportic-session-wrapper">
+									<div class="sportic-session-list" data-page-size="6">
+									<?php foreach ($pool_sessions as $sessio) : ?>
+										<?php
+										// ========================================================================
+										// INICI DEL CANVI: APLIQUEM ELS NOUS ESTILS (v3)
+										// ========================================================================
+										// El `background_css` conté ara `background-color` per a mixts o `border-left-color` per a normals
+										?>
+										<div class="sportic-session-card" style="<?php echo esc_attr($sessio['background_css']); ?>">
+											<span class="sportic-session-chip" style="<?php echo esc_attr($sessio['text_css']); ?>"><?php echo esc_html($sessio['badge']); ?></span>
+											<div class="sportic-session-time" style="<?php echo esc_attr($sessio['text_css']); ?>"><?php echo esc_html($sessio['start'] . ' - ' . $sessio['end']); ?> · <?php echo esc_html(sportic_format_duration_label($sessio['duration'])); ?></div>
+										<!-- ========================================================================
+										 FI DEL CANVI
+										 ======================================================================== -->
+											<div class="sportic-session-meta" style="<?php echo esc_attr($sessio['text_css']); ?>">
+												<span><?php echo esc_html__('Pista', 'sportic'); ?>: <?php echo esc_html($sessio['lane']); ?></span>
+												<?php if (!empty($sessio['sub_label'])) : ?><span><?php echo esc_html__('Subgrup', 'sportic'); ?>: <?php echo esc_html($sessio['sub_label']); ?></span><?php endif; ?>
+											</div>
+											<?php if ($sessio['locked'] || $sessio['recurrent']) : ?>
+											<div class="sportic-session-flags" style="<?php echo esc_attr($sessio['text_css']); ?>">
+												<?php if ($sessio['recurrent']) : ?><span>⟳ <?php echo esc_html__('Esdeveniment recurrent', 'sportic'); ?></span><?php endif; ?>
+												<?php if ($sessio['locked']) : ?><span>🔒 <?php echo esc_html__('Bloqueig manual', 'sportic'); ?></span><?php endif; ?>
+											</div>
+											<?php endif; ?>
+										</div>
+									<?php endforeach; ?>
+									</div>
+									<div class="sportic-session-pagination" aria-hidden="true">
+										<button type="button" data-action="prev"><?php echo esc_html__('Anterior', 'sportic'); ?></button>
+										<span class="current-page">1 / 1</span>
+										<button type="button" data-action="next"><?php echo esc_html__('Següent', 'sportic'); ?></button>
+									</div>
+								</div>
+							<?php else : ?>
+								<div class="sportic-session-empty"><?php echo esc_html__('Cap sessió programada. Totes les pistes lliures.', 'sportic'); ?></div>
+							<?php endif; ?>
+						</section>
+					<?php endforeach; ?>
+					</div>
+				</article>
 			<?php endforeach; ?>
 			</div>
+			<div class="sportic-legend">
+				<h4><?php echo esc_html__('Referències', 'sportic'); ?></h4>
+				<div class="sportic-legend-grid">
+				<?php foreach ($legend_entries as $entry) : ?>
+					<span class="sportic-legend-chip"><span class="color" style="background:<?php echo esc_attr($entry['color']); ?>;"></span><?php echo esc_html($entry['label']); ?></span>
+				<?php endforeach; ?>
+				</div>
+			</div>
 		</div>
-	</div>
-	<script>
-	(function(){
-	const dayButtons = document.querySelectorAll('.sportic-day-filter button');
-	const dayCards = document.querySelectorAll('.sportic-day-card');
-	dayButtons.forEach(btn => {
-		btn.addEventListener('click', () => {
-			dayButtons.forEach(b => b.classList.remove('active'));
-			btn.classList.add('active');
-			const target = btn.dataset.day;
-			dayCards.forEach(card => {
-				card.style.display = (target === 'all' || card.dataset.day === target) ? '' : 'none';
+		<script>
+		(function(){
+		const dayButtons = document.querySelectorAll('.sportic-day-filter button');
+		const dayCards = document.querySelectorAll('.sportic-day-card');
+		dayButtons.forEach(btn => {
+			btn.addEventListener('click', () => {
+				dayButtons.forEach(b => b.classList.remove('active'));
+				btn.classList.add('active');
+				const target = btn.dataset.day;
+				dayCards.forEach(card => {
+					card.style.display = (target === 'all' || card.dataset.day === target) ? '' : 'none';
+				});
 			});
 		});
-	});
-	document.querySelectorAll('.sportic-session-wrapper').forEach(wrapper => {
-		const list = wrapper.querySelector('.sportic-session-list');
-		const nav = wrapper.querySelector('.sportic-session-pagination');
-		if (!list || !nav) return;
-		const cards = Array.from(list.querySelectorAll('.sportic-session-card'));
-		const pageSize = parseInt(list.dataset.pageSize || '6');
-		if (cards.length <= pageSize) {
-			nav.classList.remove('visible');
-			return;
-		}
-		let page = 0;
-		const totalPages = Math.ceil(cards.length / pageSize);
-		const prevBtn = nav.querySelector('[data-action="prev"]');
-		const nextBtn = nav.querySelector('[data-action="next"]');
-		const counter = nav.querySelector('.current-page');
-		function renderPage() {
-			cards.forEach((card, idx) => {
-				const visible = idx >= page * pageSize && idx < (page + 1) * pageSize;
-				card.style.display = visible ? '' : 'none';
-			});
-			counter.textContent = (page + 1) + ' / ' + totalPages;
-			prevBtn.disabled = page === 0;
-			nextBtn.disabled = page >= totalPages - 1;
-		}
-		prevBtn.addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
-		nextBtn.addEventListener('click', () => { if (page < totalPages - 1) { page++; renderPage(); } });
-		nav.classList.add('visible');
-		renderPage();
-	});
-	})();
-	</script>
-	<?php
-	return ob_get_clean();
-}
-add_shortcode('sportic_frontend_custom_dayview_subitems', 'sportic_frontend_custom_dayview_subitems_shortcode');
+		document.querySelectorAll('.sportic-session-wrapper').forEach(wrapper => {
+			const list = wrapper.querySelector('.sportic-session-list');
+			const nav = wrapper.querySelector('.sportic-session-pagination');
+			if (!list || !nav) return;
+			const cards = Array.from(list.querySelectorAll('.sportic-session-card'));
+			const pageSize = parseInt(list.dataset.pageSize || '6');
+			if (cards.length <= pageSize) {
+				nav.classList.remove('visible');
+				return;
+			}
+			let page = 0;
+			const totalPages = Math.ceil(cards.length / pageSize);
+			const prevBtn = nav.querySelector('[data-action="prev"]');
+			const nextBtn = nav.querySelector('[data-action="next"]');
+			const counter = nav.querySelector('.current-page');
+			function renderPage() {
+				cards.forEach((card, idx) => {
+					const visible = idx >= page * pageSize && idx < (page + 1) * pageSize;
+					card.style.display = visible ? '' : 'none';
+				});
+				counter.textContent = (page + 1) + ' / ' + totalPages;
+				prevBtn.disabled = page === 0;
+				nextBtn.disabled = page >= totalPages - 1;
+			}
+			prevBtn.addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+			nextBtn.addEventListener('click', () => { if (page < totalPages - 1) { page++; renderPage(); } });
+			nav.classList.add('visible');
+			renderPage();
+		});
+		})();
+		</script>
+		<?php
+		return ob_get_clean();
+	}
+		
+	add_shortcode('sportic_frontend_custom_dayview_subitems', 'sportic_frontend_custom_dayview_subitems_shortcode');
 		}
 		
 	
@@ -8893,7 +10002,8 @@ function sportic_rest_get_csv($request) {
 	 * MODIFICADA: Restaura l'estructura de 2 files per a la VISTA EN PANTALLA.
 	 */
 	if ( ! function_exists('_sportic_day_html_visual') ) {
-		function _sportic_day_html_visual($dia, $dades, $pisc, $leg) {
+function _sportic_day_html_visual($dia, $dades, $pisc, $leg) {
+			
 			if (!function_exists('_sportic_contrast_color_helper')) {
 				function _sportic_contrast_color_helper($hexcolor){
 					if (empty($hexcolor) || strlen($hexcolor) < 7) return '#000000';
@@ -8921,15 +10031,26 @@ function sportic_rest_get_csv($request) {
 			}
 	
 			$dies = ['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
-			try { $o = new DateTime($dia); $nice = $o->format('d-m-Y'); $nom = $dies[(int)$o->format('w')]; }
-			catch (Exception $e) { $nice = 'Data invàlida'; $nom = ''; }
+			$mesos = ['gener', 'febrer', 'març', 'abril', 'maig', 'juny', 'juliol', 'agost', 'setembre', 'octubre', 'novembre', 'desembre'];
+			$formatted_date = 'Data invàlida';
+			try {
+				$o = new DateTime($dia);
+				$nom_dia = $dies[(int)$o->format('w')];
+				$num_dia = $o->format('j');
+				$nom_mes = $mesos[(int)$o->format('n') - 1];
+				$any = $o->format('Y');
+				$formatted_date = "$nom_dia $num_dia de $nom_mes de $any";
+			} catch (Exception $e) {
+			}
 	
 			$pavellons_a_mostrar = array_keys($pisc);
 			ob_start(); ?>
 			<div class="sw_day" data-day="<?php echo esc_attr($dia); ?>">
-			  <h3 style="margin-bottom:15px;font-size:1.25rem;font-weight:bold;text-align:center;border-bottom:1px solid #eee;">
-				<?php echo esc_html(($nom ? $nom.', ' : '').$nice); ?>
-			  </h3>
+			  
+			  <div class="sportic-day-header-box">
+				<h3><?php echo esc_html($formatted_date); ?></h3>
+			  </div>
+			  
 			  <div class="sw_row" style="display:flex;justify-content:center;gap:26px;flex-wrap:nowrap;">
 				<?php foreach ($pavellons_a_mostrar as $s):
 				  if ( ! isset($pisc[$s]) ) continue;
@@ -8954,19 +10075,23 @@ function sportic_rest_get_csv($request) {
 				  ?>
 				  <div class="sw_pavilion_block" style="display:inline-block;padding:10px 0;vertical-align:top;">
 					<h4 style="margin:0 0 8px;text-align:center;font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?php echo esc_html($lab); ?></h4>
-					  <!-- NOU: Classe dinàmica afegida a la taula -->
-						<table class="sportic-schedule-table table-cols-<?php echo $cols; ?>" style="border-collapse:collapse;margin:0 auto;font-size:0.95rem;">
+					  
+					  <div style="border-radius: 15px; overflow: hidden; background-color: #f8fafc; padding: 4px;">
+						<table class="sportic-schedule-table table-cols-<?php echo $cols; ?>" style="border-collapse: separate; border-spacing: 4px; margin: 0 auto; font-size: 0.95rem; width: 100%;">
 						  <thead>
-							<tr style="background:#eee;">
-							  <th style="border:1px solid #999;padding:5px;">Hora</th>
+							<tr>
+							  <?php // ================== INICI DEL CANVI ================== ?>
+							  <?php // S'ha afegit !important a 'background-color' i 'color' per garantir la prioritat ?>
+							  <th style="padding:5px; border-radius: 6px; background-color: #000000 !important; color: #ffffff !important; font-weight: 600;">Hora</th>
 							  <?php foreach ($lane_labels as $lane_label): ?>
-								<th style="border:1px solid #999;padding:5px;"><?php echo esc_html($lane_label); ?></th>
+								<th style="padding:5px; border-radius: 6px; background-color: #000000 !important; color: #ffffff !important; font-weight: 600;"><?php echo esc_html($lane_label); ?></th>
 							  <?php endforeach; ?>
+							  <?php // =================== FI DEL CANVI ==================== ?>
 							</tr>
 						  </thead>
 						  <tbody>
 							<?php foreach ($hores_filtrades as $r_idx => $h):
-							  echo '<tr><td class="sportic-hour-cell" style="border:1px solid #999;padding:5px;text-align:center;"><span class="sportic-text">'.esc_html($h).'</span></td>';
+							  echo '<tr><td class="sportic-hour-cell" style="padding:5px;text-align:center; border-radius: 6px; background-color: #f8fafc; color: #475569;"><span class="sportic-text">'.esc_html($h).'</span></td>';
 							  
 							  for ($c_idx = 0; $c_idx < $cols; $c_idx++) {
 								if (!isset($data_amb_spans[$r_idx][$c_idx]['rowspan'])) continue;
@@ -8981,19 +10106,47 @@ function sportic_rest_get_csv($request) {
 								elseif (is_string($v) && strpos($v, '!') === 0) { $valorBase = substr($v, 1); }
 	
 								$valorBase = trim($valorBase);
-								$bg  = $leg[$valorBase]['color'] ?? $leg['l']['color'];
-								$tit = $leg[$valorBase]['title'] ?? '';
-								$txt = ($valorBase === 'l' || $valorBase === 'b') ? '' : $valorBase;
-								
-								$textColor = _sportic_contrast_color_helper($bg);
-								$style = 'border:1px solid #999;padding:5px;text-align:center;background-color:'.$bg.';color:'.$textColor.';position:relative;vertical-align:middle;';
 	
+								$bg = '#ffffff';
+								$tit = '';
+								$txt = '';
+								$textColor = '#000000';
 								$data_attrs = '';
-								if ($txt !== '') {
-									$team_key = _sportic_normalize_key($txt);
-									$data_attrs .= ' data-team-name="' . esc_attr($txt) . '"';
-									$data_attrs .= ' data-team-key="' . esc_attr($team_key) . '"';
+	
+								if (strpos($valorBase, 'MIX:') === 0) {
+									$teams_in_mix = explode('|', substr($valorBase, 4));
+									$trimmed_teams = array_map('trim', $teams_in_mix);
+									
+									$colors_to_blend = [];
+									foreach ($trimmed_teams as $team_name) {
+										if (isset($leg[trim($team_name)])) {
+											$colors_to_blend[] = $leg[trim($team_name)]['color'];
+										}
+									}
+									$bg = sportic_blend_hex_colors($colors_to_blend);
+									$tit = 'Sessió Mixta: ' . implode(' + ', $trimmed_teams);
+									$txt = $valorBase;
+									$textColor = _sportic_contrast_color_helper($bg);
+	
+									$team_keys = array_map('_sportic_normalize_key', $trimmed_teams);
+									$data_attrs .= ' data-team-name="' . esc_attr(implode(', ', $trimmed_teams)) . '"';
+									$data_attrs .= ' data-team-key="' . esc_attr(implode(' ', $team_keys)) . '"';
+	
+								} else {
+									$bg  = $leg[$valorBase]['color'] ?? $leg['l']['color'];
+									$tit = $leg[$valorBase]['title'] ?? '';
+									$txt = ($valorBase === 'l' || $valorBase === 'b') ? '' : $valorBase;
+									$textColor = _sportic_contrast_color_helper($bg);
+	
+									if ($txt !== '') {
+										$team_key = _sportic_normalize_key($txt);
+										$data_attrs .= ' data-team-name="' . esc_attr($txt) . '"';
+										$data_attrs .= ' data-team-key="' . esc_attr($team_key) . '"';
+									}
 								}
+								
+								$style = 'padding:5px; text-align:center; background-color:'.$bg.'; color:'.$textColor.'; position:relative; vertical-align:middle; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);';
+	
 								$data_attrs .= ' data-original-bg="' . esc_attr($bg) . '"';
 								$data_attrs .= ' data-original-color="' . esc_attr($textColor) . '"';
 	
@@ -9005,6 +10158,7 @@ function sportic_rest_get_csv($request) {
 							endforeach; ?>
 						  </tbody>
 						</table>
+					  </div>
 				  </div>
 				<?php endforeach; ?>
 			  </div>
@@ -9014,7 +10168,7 @@ function sportic_rest_get_csv($request) {
 	}
 	
 	if ( ! function_exists('_sportic_day_html_dina3') ) {
-		function _sportic_day_html_dina3($dia, $dades, $pisc, $leg, $pools_to_render_slugs = null) {
+function _sportic_day_html_dina3($dia, $dades, $pisc, $leg, $pools_to_render_slugs = null) {
 			if ($pools_to_render_slugs === null) {
 				$pools_to_render_slugs = array_keys($pisc);
 			}
@@ -9082,16 +10236,36 @@ function sportic_rest_get_csv($request) {
 								elseif (is_string($v) && strpos($v, '!') === 0) { $valorBase = substr($v, 1); }
 	
 								$valorBase = trim($valorBase);
-								$bg  = $leg[$valorBase]['color'] ?? $leg['l']['color'];
-								$tit = $leg[$valorBase]['title'] ?? '';
-								$txt = ($valorBase === 'l' || $valorBase === 'b') ? '' : $valorBase;
+	
+								// ========================================================================
+								// INICI DE LA CORRECCIÓ
+								// ========================================================================
+								$bg = '#ffffff';
+								$tit = '';
+								$txt = '';
+								$textColor = '#000000';
+	
+								if (strpos($valorBase, 'MIX:') === 0) {
+									$teams_in_mix = explode('|', substr($valorBase, 4));
+									$colors_to_blend = [];
+									foreach ($teams_in_mix as $team_name) {
+										$trimmed_name = trim($team_name);
+										if (isset($leg[$trimmed_name])) {
+											$colors_to_blend[] = $leg[$trimmed_name]['color'];
+										}
+									}
+									$bg = sportic_blend_hex_colors($colors_to_blend);
+									$tit = 'Sessió Mixta: ' . implode(' + ', array_map('trim', $teams_in_mix));
+									$txt = $valorBase;
+								} else {
+									$bg  = $leg[$valorBase]['color'] ?? $leg['l']['color'];
+									$tit = $leg[$valorBase]['title'] ?? '';
+									$txt = ($valorBase === 'l' || $valorBase === 'b') ? '' : $valorBase;
+								}
 								
-								// =========================================================================
-								// INICI DEL CANVI: AFEGIM ELS MATEIXOS ATRIBUTS QUE LA VISTA NORMAL
-								// =========================================================================
 								$textColor = function_exists('_sportic_contrast_color_helper') ? _sportic_contrast_color_helper($bg) : '#000000';
 								$style = 'border:2px solid #555;padding:10px;text-align:center;background-color:'.$bg.';color:'.$textColor.';width:120px;position:relative; vertical-align:middle;';
-	
+								
 								$data_attrs = '';
 								if ($txt !== '') {
 									$team_key = function_exists('_sportic_normalize_key') ? _sportic_normalize_key($txt) : strtolower($txt);
@@ -9102,9 +10276,9 @@ function sportic_rest_get_csv($request) {
 								$data_attrs .= ' data-original-color="' . esc_attr($textColor) . '"';
 	
 								echo '<td class="sportic-cell" rowspan="'.$rowspan.'" colspan="'.$colspan.'" title="'.esc_attr($tit).'" style="'.$style.'"'.$data_attrs.'><span class="sportic-text-scalable">'.esc_html($txt).'</span></td>';
-								// =========================================================================
-								// FI DEL CANVI
-								// =========================================================================
+								// ========================================================================
+								// FI DE LA CORRECCIÓ
+								// ========================================================================
 							  }
 							  echo '</tr>';
 							endforeach; ?>
@@ -9153,7 +10327,13 @@ function sportic_rest_get_csv($request) {
 }
 	
 if ( ! function_exists('sportic_independent_shortcode_function') ) {
-	function sportic_independent_shortcode_function() {
+function sportic_independent_shortcode_function( $atts ) {
+		// Processar atributs del shortcode per al sticky header
+		$atts = shortcode_atts( array(
+			'sticky_top'   => '120',    // Distància des de dalt en píxels.
+			'sticky_scale' => '0.85', // Escala de la barra en mode sticky (0.85 = 85%).
+		), $atts, 'sportic_schedule' );
+
 		// Obtenim la data seleccionada o la data actual
 		$ds = isset($_GET['sc_date']) ? sanitize_text_field($_GET['sc_date']) : date('Y-m-d');
 		try { $o = new DateTime($ds); }
@@ -9205,8 +10385,56 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 		$htmlWeek = ''; $htmlD3 = []; $tmp = clone $o;
 		for ($i=0;$i<7;$i++) { 
 			$d = $tmp->format('Y-m-d');
-			$htmlWeek .= '<div id="sw_day_'.$d.'" class="sportic-schedule-day-wrapper" style="margin-bottom:32px;border-bottom:2px solid #ccc;padding-bottom:22px;">'
-						 . _sportic_day_html_visual($d,$dades,$piscines,$leg).'</div>';
+			
+			$is_day_empty = true;
+			foreach ($piscines as $slug => $pinfo) {
+				if (isset($dades[$slug][$d])) {
+					foreach ($dades[$slug][$d] as $hora => $carrils) {
+						if(!is_array($carrils)) continue;
+						foreach ($carrils as $valor_raw) {
+							$valor_net = is_string($valor_raw) ? preg_replace('/^[@!]/', '', trim($valor_raw)) : '';
+							$valor_principal = strpos($valor_net, ':') !== false ? trim(explode(':', $valor_net, 2)[0]) : $valor_net;
+							
+							if (!empty($valor_principal) && strtolower($valor_principal) !== 'l' && strtolower($valor_principal) !== 'b') {
+								$is_day_empty = false;
+								break;
+							}
+						}
+						if (!$is_day_empty) {
+							break;
+						}
+					}
+				}
+				if (!$is_day_empty) {
+					break;
+				}
+			}
+
+			if ($is_day_empty) {
+				$dies = ['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
+				$mesos = ['gener', 'febrer', 'març', 'abril', 'maig', 'juny', 'juliol', 'agost', 'setembre', 'octubre', 'novembre', 'desembre'];
+				$formatted_date_empty = 'Data invàlida';
+				try {
+					$date_obj_empty = new DateTime($d);
+					$nom_dia_empty = $dies[(int)$date_obj_empty->format('w')];
+					$num_dia_empty = $date_obj_empty->format('j');
+					$nom_mes_empty = $mesos[(int)$date_obj_empty->format('n') - 1];
+					$any_empty = $date_obj_empty->format('Y');
+					$formatted_date_empty = "$nom_dia_empty $num_dia_empty de $nom_mes_empty de $any_empty";
+				}
+				catch (Exception $e) { /* No fem res, el valor per defecte és 'Data invàlida' */ }
+
+				$empty_day_html = '<div class="sw_day" data-day="' . esc_attr($d) . '">';
+				$empty_day_html .= '<div class="sportic-day-header-box"><h3>' . esc_html($formatted_date_empty) . '</h3></div>';
+				$empty_day_html .= '<div style="border: 1px dashed #cbd5e1; padding: 40px 20px; text-align: center; color: #64748b; margin-top: 20px; border-radius: 12px; background-color: #f8fafc;">No hi ha horaris programats per aquest dia.</div>';
+				$empty_day_html .= '</div>';
+				
+				$htmlWeek .= '<div id="sw_day_'.$d.'" class="sportic-schedule-day-wrapper" style="margin-bottom:32px;padding-bottom:22px;">' . $empty_day_html . '</div>';
+
+			} else {
+				$htmlWeek .= '<div id="sw_day_'.$d.'" class="sportic-schedule-day-wrapper" style="margin-bottom:32px;padding-bottom:22px;">'
+							 . _sportic_day_html_visual($d,$dades,$piscines,$leg).'</div>';
+			}
 			$pavellons_per_dina3 = array_keys($piscines);
 			$htmlD3[$d] = _sportic_day_html_dina3($d, $dades, $piscines, $leg, $pavellons_per_dina3);
 			$tmp->modify('+1 day');
@@ -9215,245 +10443,293 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 		
 		ob_start(); ?>
 	<style>
-		/* Estils Base i de disseny */
-		.sw_wrap  {width:100%;position:relative;margin:0 auto; overflow: hidden;}
+		.sportic-day-header-box {
+			background-color: #f1f5f9;
+			border: 1px solid #e2e8f0;
+			border-radius: 12px;
+			padding: 16px 24px;
+			margin-bottom: 25px;
+		}
+		.sportic-day-header-box h3 {
+			margin: 0 !important;
+			font-size: 2rem !important;
+			font-weight: 800 !important;
+			text-align: center;
+			color: #1e293b;
+			font-style: normal !important;
+		}
+		.sportic-schedule-day-wrapper:first-of-type {
+			margin-top: 25px !important;
+		}
+		
+		.sw_wrap  {
+			width:100%;
+			position:relative;
+			margin:0 auto;
+		}
 		.sw_scaler{
 			width: 100%; 
 			max-width: 1650px; 
 			margin: 0 auto; 
 			transform-origin: top center; 
 		}
-		.sw_btn{padding:10px 22px;background:#334155;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:1.1em;font-weight:600;display:inline-flex;align-items:center;gap:8px;transition:background-color 0.2s ease;}
-		.sw_btn:hover {background-color:#475569;}
-		.sw_btn .dashicons {font-size: 20px;line-height: 1;}
+
+		/* Element sentinella invisible per a l'IntersectionObserver */
+		#sportic-sticky-sentinel {
+			position: absolute;
+			height: 1px;
+			top: 0;
+			left: 0;
+			right: 0;
+			visibility: hidden;
+		}
+
+		.sportic-main-controls-container {
+			/* Aparença per defecte */
+			padding: 20px;
+			background-color: #000000 !important;
+			border-radius: 15px;
+			box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+			/* Transició suau */
+			transition: transform 0.3s ease, padding 0.3s ease, box-shadow 0.3s ease;
+			transform-origin: top center;
+		}
+		
+		/* Classe que s'aplica amb JS quan l'element està enganxat */
+		.sportic-main-controls-container.is-stuck {
+			position: fixed; /* Canvi a fixed per a màxima fiabilitat */
+			top: var(--sportic-sticky-top, 0px); /* Distància superior configurable */
+			z-index: 990;
+			
+			/* Estils en mode 'stuck' */
+			transform: scale(var(--sportic-sticky-scale, 0.85)); /* Escala configurable */
+			box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+			padding-top: 15px;
+			padding-bottom: 15px;
+			border-radius: 15px; /* Mantenim el radius per consistència */
+			margin-bottom: 0; /* Anul·lem el marge inferior quan està fixat */
+		}
+
+		.sportic-controls-row {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			justify-content: space-between;
+			gap: 1rem;
+		}
+
+		.sportic-actions-group {
+			display: flex;
+			align-items: center;
+			gap: 1rem;
+		}
+		
+		.sw_wrap .sw_btn {
+			padding: 10px 22px !important;
+			background-color: #ffdc00 !important;
+			color: #000000 !important;
+			border: none !important;
+			border-radius: 21px !important;
+			cursor: pointer !important;
+			font-size: 1.1em !important;
+			font-weight: 500 !important;
+			display: inline-flex !important;
+			align-items: center !important;
+			gap: 8px !important;
+			transition: background-color 0.2s ease !important;
+			text-transform: none !important;
+			letter-spacing: normal !important;
+		}
+		.sw_wrap .sw_btn:hover {
+			background-color: #fecb00 !important;
+		}
+		.sw_wrap .sw_btn img {
+			width: 18px;
+			height: 18px;
+		}
+		
+		.sportic-date-selector-container {
+			position: relative;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+		.sportic-date-trigger-btn img {
+			width: 20px;
+			height: 20px;
+			filter: none;
+		}
+		.sportic-mini-calendar {
+			display: none;
+			position: absolute;
+			z-index: 1000;
+			top: calc(100% + 10px);
+			left: 0;
+			width: 300px;
+			background-color: #fff;
+			border-radius: 12px;
+			box-shadow: 0 10px 30px -5px rgba(0,0,0,0.2);
+			padding: 15px;
+			border: 1px solid #e2e8f0;
+		}
+		.sportic-mini-calendar .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+		
+		.sportic-mini-calendar .cal-table tbody tr,
+		.sportic-mini-calendar .cal-table tbody td {
+			background: transparent !important;
+		}
+
+		.sportic-mini-calendar .cal-nav-btn {
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			padding: 0;
+			background-color: #f1f5f9;
+			color: #334155;
+			border: none;
+			text-decoration: none;
+			font-size: 1.1em;
+			font-weight: bold;
+			line-height: 1;
+			cursor: pointer;
+			transition: background-color 0.2s ease;
+		}
+
+		.sportic-mini-calendar .cal-nav-btn:hover {
+			background-color: #e2e8f0;
+		}
+
+		.sportic-mini-calendar .cal-title { font-weight: 600; font-size: 1em; color: #1e293b; }
+		.sportic-mini-calendar .cal-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+		.sportic-mini-calendar .cal-table thead th { border: none !important; padding: 10px 4px; text-align: center; font-weight: 600; color: #6b7280; font-size: 0.8em; }
+		.sportic-mini-calendar .cal-table td { border: none !important; padding: 2px; height: 38px; }
+		.sportic-mini-calendar td.cal-day button { text-decoration: none; color: #111827; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 0.9em; background:none; border:none; cursor:pointer; padding:0; }
+		.sportic-mini-calendar td.cal-day button span { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; font-weight: 500; line-height: 1; box-sizing: border-box; transition: all 0.2s; }
+		.sportic-mini-calendar td.cal-day:hover button span { background-color: #e2e8f0; }
+		.sportic-mini-calendar td.cal-day.today button span { box-shadow: inset 0 0 0 2px #3b82f6; }
+		.sportic-mini-calendar td.cal-day.selected button span { background-color: #1e40af; color: white; font-weight: 700; }
+		.sportic-mini-calendar td.cal-day.today.selected button span { box-shadow: none; }
+
+		.sportic-filter-modal-overlay .sw_btn_primary { background-color: #ffdc00 !important; color: #000000 !important; }
+		.sportic-filter-modal-overlay .sw_btn_primary:hover { background-color: #fecb00 !important; }
+		.sportic-filter-modal-overlay #sw_reset_filters { background-color: #f1f5f9 !important; color: #475569 !important; border: 1px solid #cbd5e1 !important; }
+		.sportic-filter-modal-overlay #sw_reset_filters:hover { background-color: #e2e8f0 !important; color: #334155 !important; }
+		.sw_wrap .sportic-schedule-table { border-collapse: separate !important; border-spacing: 4px !important; width: 100%; }
+		.sw_wrap .sportic-schedule-table th, .sw_wrap .sportic-schedule-table td { border: none !important; border-radius: 6px !important; }
+		.sw_wrap .sportic-schedule-table thead th { background-color: #f1f5f9 !important; color: #334155 !important; font-weight: 600 !important; padding: 5px; }
+		.sw_wrap .sportic-schedule-table tbody .sportic-hour-cell { background-color: #f8fafc !important; color: #475569 !important; font-weight: 500; padding: 5px; }
+		.filter-count-badge { background-color: #3b82f6; color: white; font-size: 0.75em; font-weight: bold; padding: 2px 7px; border-radius: 50px; margin-left: 8px; display: none; }
+		.filter-count-badge.visible { display: inline-block; }
+		.sportic-filter-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.6); z-index: 1000; display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0s 0.2s linear; }
+		.sportic-filter-modal-overlay.visible { opacity: 1; visibility: visible; transition: opacity 0.2s ease; }
+		.sportic-filter-modal-content { background-color: #f8fafc; border-radius: 16px; width: 90%; max-width: 700px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); transform: scale(0.95); transition: transform 0.2s ease; }
+		.sportic-filter-modal-overlay.visible .sportic-filter-modal-content { transform: scale(1); }
+		.modal-header { padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+		.modal-header h3 { margin: 0; font-size: 1.25em; color: #1e293b; }
+		.modal-close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; }
+		.modal-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; overflow-y: auto; }
+		.modal-search-wrapper .sportic-search-wrapper { width: 100%; }
+		#sportic_team_search_input_modal { width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1.05em; padding: 9px 15px 9px 40px; border: 1px solid #cbd5e1; border-radius: 50px; transition: border-color 0.2s, box-shadow 0.2s; }
+		.modal-team-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
+		.modal-team-item label { display: flex; align-items: center; gap: 8px; font-size: 1em; padding: 8px; border-radius: 6px; cursor: pointer; transition: background-color 0.1s ease; }
+		.modal-team-item label:hover { background-color: #e2e8f0; }
+		.modal-team-item input[type="checkbox"] { width: 18px; height: 18px; }
+		.modal-footer { padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 1rem; background-color: #fff; border-radius: 0 0 16px 16px; flex-shrink: 0; }
 		@keyframes spin{0%{transform:rotate(0);}100%{transform:rotate(360deg);}}
 		.sw_spin{ border:12px solid #f1f5f9; border-top:12px solid #3b82f6; border-radius:50%; width:70px; height:70px; animation:spin 1.2s linear infinite; margin:0 auto; }
 		td[rowspan]:not([rowspan="1"]), td[colspan]:not([colspan="1"]) { vertical-align: middle !important; text-align: center !important; }
 		.sportic-text-scalable { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-weight: bold; font-size: 1em; line-height: 1.1; padding: 2px; box-sizing: border-box; }
-
-		td.sportic-cell.dimmed {
-			background-color: #E0E0E0 !important;
-			opacity: 0.7 !important;
-		}
-		
-		.sportic-main-controls-container {
-			margin-bottom: 25px; padding: 1.25rem; background-color: #f8fafc;
-			border-radius: 16px; border: 1px solid #e2e8f0;
-			box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-		}
-		.sportic-controls-row {
-			display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;
-		}
-		.sportic-main-actions {
-			justify-content: space-between;
-			padding-bottom: 1.25rem;
-		}
-		.sportic-filters {
-			flex-direction: column; 
-			align-items: center; 
-			padding-top: 1.25rem;
-			border-top: 1px solid #e2e8f0;
-			gap: 1.5rem;
-		}
-		.sw_form {display:flex;gap:12px;align-items:center;}
-		.sw_form label {font-size: 1.1em;font-weight:600;color:#334155;}
-		.sw_form input[type="date"] {font-size: 1.1em;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;}
-		.sw_form .sw_btn {padding: 9px 18px;font-size:1.1em;}
-		.sportic-download-buttons {display:flex;gap:12px;flex-wrap:wrap;}
-		
+		td.sportic-cell { cursor: pointer; }
+		td.sportic-cell.dimmed { background-color: #E0E0E0 !important; opacity: 0.7 !important; }
 		.sportic-gender-filters {display:flex;justify-content:center;gap:10px;flex-wrap:wrap;}
 		.sportic-filter-btn {font-family: inherit;font-size:1.05em;font-weight:600;padding:9px 20px;border:2px solid transparent;border-radius:50px;cursor:pointer;background-color:#f1f5f9;color:#475569;transition:all 0.15s ease;}
 		.sportic-filter-btn:hover {background-color:#e2e8f0; color: #334155;} 
 		.sportic-filter-btn.active {background-color:#334155;color:white;border-color:#334155;}
-		
-		.sportic-team-filter-controls {display:flex;justify-content:center;gap:10px;flex-wrap:wrap; align-items: center;}
-		.sportic-team-btn {font-family: inherit;font-size:0.95em;padding:8px 14px;margin:4px;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;background-color:white;color:#334155;transition:all 0.12s ease;}
-		.sportic-team-btn:hover {background-color:#f1f5f9;border-color:#94a3b8; color: #1e293b;} 
-		.sportic-team-btn.active {background-color:#0ea5e9;color:white;border-color:#0ea5e9;font-weight:700;}
-		
-		.sportic-team-btn:focus, .sportic-team-btn:active { outline: none; box-shadow: none; }
-		.sportic-team-btn:not(.active):focus { background-color: white; border-color: #cbd5e1; color: #334155; }
-		
-		.sportic-reset-btn {
-			background-color: #334155; color: #fff; border: none; padding: 10px 22px; 
-			font-size: 1.1em; font-weight: 600; border-radius: 8px; cursor: pointer;
-			display: inline-flex; align-items: center; gap: 8px; transition: background-color 0.2s ease;
-		}
-		.sportic-reset-btn:hover { background-color: #475569; }
-
-		.sportic-search-wrapper { position: relative; display: inline-block; }
-		.sportic-search-wrapper .dashicons {
-			position: absolute;
-			left: 12px;
-			top: 50%;
-			transform: translateY(-50%);
-			color: #94a3b8;
-			pointer-events: none;
-		}
-		#sportic_team_search_input {
-			font-family: inherit;
-			font-size: 1.05em;
-			padding: 9px 15px 9px 40px; 
-			border: 1px solid #cbd5e1;
-			border-radius: 50px;
-			min-width: 280px;
-			transition: border-color 0.2s, box-shadow 0.2s;
-		}
-		#sportic_team_search_input:focus {
-			border-color: #3b82f6;
-			box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
-			outline: none;
-		}
-
 		#sw_dina3{ display:none; position:absolute; left:-9999px; top:0; background:#fff; padding:40px 80px; font-family:Arial,sans-serif; width:12840px; box-sizing:border-box; }
 		#sw_dina3 .dina3-row{display:flex;gap:100px;margin-bottom:40px;justify-content:flex-start;}
 		#sw_dina3 .dina3-row > div{flex:0 0 calc( (100% - 200px) / 3 );}
 		.logo2-dina3{position:absolute;bottom:1200px;left:65%;transform:translateX(-50%);width:3000px;z-index:10;opacity:1;pointer-events:none;}
 		.logo3-dina3{position:absolute;bottom:400px;right:320px !important;width:1000px;z-index:10;}
 		.sw_wrap table th, .sw_wrap table td, #sw_dina3 table th, #sw_dina3 table td { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-		
 		.sw_pavilion_block { table-layout: auto; }
-		.sportic-schedule-table { table-layout: auto; width: auto; }
-		
-		.mobile-filter-container { display: none; }
-		
-		@media (max-width: 768px) {
+		@media (max-width: 960px) {
 			.sw_wrap { height: auto !important; }
-			.sw_scaler { 
-				width: 100% !important; 
-				transform: none !important; 
-				padding: 0 10px;
-				box-sizing: border-box;
-				max-width: none;
-				margin: 0;
-			}
-
-			.sportic-main-actions { flex-direction:column; align-items:stretch; }
-			.sw_form { flex-direction: column; width: 100%; align-items: stretch; }
-			.sw_form input[type="date"], .sw_form .sw_btn, .sw_form label { width: 100%; box-sizing: border-box; text-align:center; margin-bottom:10px; }
-			.sportic-download-buttons, .sportic-filters { justify-content:center; }
-			
+			.sw_scaler { width: 100% !important; transform: none !important; padding: 0 10px; box-sizing: border-box; max-width: none; margin: 0; }
+			.sportic-controls-row { flex-direction: column; align-items: stretch; }
+			.sportic-actions-group.left { justify-content: center; }
+			.sportic-actions-group.right { width: 100%; flex-direction: column; align-items: stretch; }
+			.sportic-actions-group.right .sw_btn { width: 100%; justify-content: center; }
+			#sw_export_week { display: none; }
 			.sw_row { flex-direction: column !important; align-items: stretch !important; gap: 35px !important; }
 			.sw_pavilion_block { width: 100% !important; }
-
-			.sportic-schedule-table {
-				width: 100% !important;
-				table-layout: fixed !important;
-				border-collapse: collapse;
-			}
-			.sportic-schedule-table th,
-			.sportic-schedule-table td {
-				font-size: 0.8rem !important;
-				padding: 4px 2px !important;
-				overflow-wrap: break-word;
-				hyphens: auto;
-			}
-			.sportic-schedule-table td {
-				white-space: normal !important;
-			}
-			.sportic-schedule-table th {
-				white-space: nowrap !important;
-				overflow-wrap: normal !important;
-				hyphens: none !important;
-			}
-			
+			.sportic-schedule-table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse; }
+			.sportic-schedule-table th, .sportic-schedule-table td { font-size: 0.8rem !important; padding: 4px 2px !important; overflow-wrap: break-word; hyphens: auto; }
+			.sportic-schedule-table td { white-space: normal !important; }
+			.sportic-schedule-table th { white-space: nowrap !important; overflow-wrap: normal !important; hyphens: none !important; }
 			.table-cols-1 th:first-child, .table-cols-1 td:first-child { width: 40%; }
 			.table-cols-1 th:not(:first-child), .table-cols-1 td:not(:first-child) { width: 60%; }
-
 			.table-cols-2 th:first-child, .table-cols-2 td:first-child { width: 34%; }
 			.table-cols-2 th:not(:first-child), .table-cols-2 td:not(:first-child) { width: 33%; }
-
 			.table-cols-5 th:first-child, .table-cols-5 td:first-child { width: 18%; }
 			.table-cols-5 th:not(:first-child), .table-cols-5 td:not(:first-child) { width: 20.5%; }
-
-			.desktop-filters { display: none !important; }
-			.mobile-filter-container { display: block !important; width: 100%; border-top: 1px solid #e2e8f0; padding-top: 1.25rem; }
-			#mobile-filter-toggle { width: 100%; background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 15px; font-size: 1.1em; font-weight: 600; color: #334155; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; }
-			#mobile-filter-toggle::after { content: '▼'; font-size: 0.8em; transition: transform 0.2s ease; }
-			.mobile-filter-container.active #mobile-filter-toggle::after { transform: rotate(180deg); }
-			#mobile-filter-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; background-color: #f8fafc; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0; border-top: none; }
-			.mobile-filter-container.active #mobile-filter-content { max-height: 480px; }
-			.mobile-search-wrapper { padding: 15px; border-bottom: 1px solid #e2e8f0; }
-			#mobile_team_search_input {
-				width: 100%;
-				box-sizing: border-box;
-				font-size: 1.1em;
-				padding: 10px 15px 10px 40px;
-				border: 1px solid #cbd5e1;
-				border-radius: 8px;
-			}
-			#mobile-team-list { padding: 15px; overflow-y: auto; max-height: 230px; }
-			.mobile-team-filter-item { display: block; margin-bottom: 10px; }
-			.mobile-team-filter-item label { display: flex; align-items: center; gap: 10px; font-size: 1.1em; }
-			.mobile-team-filter-item input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
 		}
 	</style>
 
-	<div class="sw_wrap" id="sportic-shortcode-main-container">
+	<div class="sw_wrap" id="sportic-shortcode-main-container" 
+		 data-sticky-top-offset="<?php echo esc_attr($atts['sticky_top']); ?>" 
+		 data-sticky-scale="<?php echo esc_attr($atts['sticky_scale']); ?>">
+
 	  <div class="sw_scaler">
-		<div style="font-family:Arial,sans-serif;margin-bottom:38px;">
-		  
-		  <div class="sportic-main-controls-container">
-			  <div class="sportic-controls-row sportic-main-actions">
-				  <form class="sw_form" method="get">
-					  <label for="sc_date">Data:</label>
-					  <input type="date" id="sc_date" name="sc_date" value="<?php echo esc_attr($ds); ?>"/>
-					  <?php
-					  foreach ($_GET as $key => $value) {
-						  if ($key !== 'sc_date') {
-							  echo '<input type="hidden" name="' . esc_attr($key) . '" value="' . esc_attr($value) . '">';
-						  }
-					  }
-					  ?>
-					  <button type="submit" class="sw_btn">Mostrar</button>
-				  </form>
-				  <div class="sportic-download-buttons">
-					  <button id="sw_export_week" class="sw_btn"><span class="dashicons dashicons-images-alt2"></span> Descarregar Setmana DINA3</button>
-				  </div>
-			  </div>
+		
+		<!-- === Estructura ajustada per a un sticky robust basat en JS === -->
+		<div id="sportic-sticky-sentinel"></div>
+		<div id="sportic-controls-placeholder" style="display: none;"></div>
+		<div class="sportic-main-controls-container">
+			<div class="sportic-controls-row">
+				<div class="sportic-actions-group left">
+				<form method="get" class="sportic-date-selector-container">
+					<input type="hidden" name="sc_date" id="sc_date_hidden" value="<?php echo esc_attr($ds); ?>" />
+					<?php
+					$other_params = $_GET;
+					unset($other_params['sc_date']);
+					foreach ($other_params as $key => $value) : ?>
+						<input type="hidden" name="<?php echo esc_attr($key); ?>" value="<?php echo esc_attr($value); ?>" />
+					<?php endforeach; ?>
 
-			  <div class="desktop-filters">
-				<div class="sportic-controls-row sportic-filters">
-					<div class="sportic-gender-filters">
-						<button class="sportic-filter-btn" data-gender-filter="masculi">Masculí</button>
-						<button class="sportic-filter-btn" data-gender-filter="femeni">Femení</button>
-						<button class="sportic-filter-btn active" data-gender-filter="tots">Tots</button>
+					<button type="button" class="sw_btn sportic-date-trigger-btn" id="sportic-date-trigger">
+						<img src="<?php echo esc_url(plugin_dir_url(__FILE__) . 'imatges/icocalendari.png'); ?>" alt="Calendari" />
+						<span id="sportic-date-display"><?php echo esc_html($o->format('d/m/Y')); ?></span>
+					</button>
+					<button type="submit" class="sw_btn">Mostrar</button>
+
+					<div class="sportic-mini-calendar" id="sportic-date-popup">
+						<?php /* Aquest contingut serà generat per JavaScript */ ?>
 					</div>
-					<div class="sportic-search-wrapper">
-						<span class="dashicons dashicons-search"></span>
-						<input type="text" id="sportic_team_search_input" placeholder="Busca per equip...">
-					</div>
-					<button id="sw_reset_filters" class="sportic-reset-btn"><span class="dashicons dashicons-undo"></span>Restablir</button>
+				</form>
 				</div>
-				<div id="sportic-team-filter-container" class="sportic-team-filter-controls" style="margin-top: 1rem;"></div>
-			  </div>
 
-			  <div class="mobile-filter-container">
-				<button id="mobile-filter-toggle">Filtra per equip</button>
-				<div id="mobile-filter-content">
-					<div class="mobile-search-wrapper">
-						<div class="sportic-search-wrapper">
-							<span class="dashicons dashicons-search"></span>
-							<input type="text" id="mobile_team_search_input" placeholder="Busca per equip...">
-						</div>
-					</div>
-					<div class="sportic-gender-filters" style="padding: 15px 15px 10px; border-bottom: 1px solid #e2e8f0;">
-						<button class="sportic-filter-btn" data-gender-filter="masculi">Masculí</button>
-						<button class="sportic-filter-btn" data-gender-filter="femeni">Femení</button>
-						<button class="sportic-filter-btn active" data-gender-filter="tots">Tots</button>
-					</div>
-					<div id="mobile-team-list">
-					</div>
-					<div style="padding: 10px 15px 15px;">
-						<button id="sw_reset_filters_mobile" class="sportic-reset-btn" style="width: 100%; justify-content: center;">
-							<span class="dashicons dashicons-undo"></span>Restablir Filtres
-						</button>
-					</div>
+				<div class="sportic-actions-group right">
+				<?php
+				$imatges_path = plugin_dir_url(__FILE__) . 'imatges/';
+				?>
+				<button id="sw_reset_filters_main" class="sw_btn" style="display: none;">
+					<img src="<?php echo esc_url($imatges_path . 'icon-netejar.png'); ?>" alt="" /> Netejar Filtres
+				</button>
+				<button id="sportic-open-filter-modal-btn" class="sw_btn">
+					<img src="<?php echo esc_url($imatges_path . 'icon-filtrar.png'); ?>" alt="" /> Filtrar Equips
+					<span id="filter-count-badge" class="filter-count-badge"></span>
+				</button>
+				<button id="sw_export_week" class="sw_btn">
+					<img src="<?php echo esc_url($imatges_path . 'icon-descarregar.png'); ?>" alt="" /> Descarregar Setmana DINA3
+				</button>
 				</div>
-			  </div>
-
-		  </div>
-
+			</div>
+		</div>
+		
+		<div style="font-family:Arial,sans-serif;">
 		  <div id="sw_table"><?php echo $htmlWeek; ?></div>
 
 		  <div style="margin-top:42px;padding-top:18px;border-top:1px solid #eee;text-align:center;">
@@ -9468,7 +10744,36 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 			</div>
 		  </div>
 		</div>
+
 	  </div>
+	</div>
+
+	<div class="sportic-filter-modal-overlay" id="sportic-filter-modal">
+		<div class="sportic-filter-modal-content">
+			<div class="modal-header">
+				<h3>Filtrar per Equip</h3>
+				<button class="modal-close-btn" id="sportic-close-filter-modal-btn">&times;</button>
+			</div>
+			<div class="modal-body">
+				<div class="modal-search-wrapper">
+					<div class="sportic-search-wrapper">
+						<span class="dashicons dashicons-search"></span>
+						<input type="text" id="sportic_team_search_input_modal" placeholder="Busca per equip...">
+					</div>
+				</div>
+				<div class="sportic-gender-filters">
+					<button class="sportic-filter-btn" data-gender-filter="masculi">Masculí</button>
+					<button class="sportic-filter-btn" data-gender-filter="femeni">Femení</button>
+					<button class="sportic-filter-btn active" data-gender-filter="tots">Tots</button>
+				</div>
+				<div id="modal-team-list" class="modal-team-list">
+					</div>
+			</div>
+			<div class="modal-footer">
+				<button id="sw_reset_filters" class="sw_btn">Netejar</button>
+				<button id="sportic-apply-filters-btn" class="sw_btn sw_btn_primary">Aplicar Filtres</button>
+			</div>
+		</div>
 	</div>
 
 	<div id="sw_loader" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.85);z-index:9999;text-align:center;">
@@ -9508,6 +10813,7 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 	</div>
 
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+	
 	<script>
 	window.addEventListener('load', () => {
 		const contenidorPrincipal = document.getElementById('sportic-shortcode-main-container');
@@ -9516,106 +10822,187 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 			return;
 		}
 
-		const totsEquips = <?php echo json_encode($all_teams_for_js); ?>;
-		
-		const searchInputDesktop = contenidorPrincipal.querySelector('#sportic_team_search_input');
-		const searchInputMobile = contenidorPrincipal.querySelector('#mobile_team_search_input');
-		
-		const sporticFilterState = {
-			selectedKeys: new Set(),
-			searchTerm: '',
-			gender: 'tots'
-		};
-		
-		const mobileFilterContainer = contenidorPrincipal.querySelector('.mobile-filter-container');
-		const mobileFilterToggle = contenidorPrincipal.querySelector('#mobile-filter-toggle');
-		const mobileTeamList = contenidorPrincipal.querySelector('#mobile-team-list');
+		// === NOU: Lògica robusta per a la barra de controls 'sticky' amb position:fixed ===
+		const controlsContainer = contenidorPrincipal.querySelector('.sportic-main-controls-container');
+		const sentinel = document.getElementById('sportic-sticky-sentinel');
+		const placeholder = document.getElementById('sportic-controls-placeholder');
 
-		function actualitzarVisibilitatEquips() {
-			const normalizedSearch = sporticFilterState.searchTerm.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-			// =========================================================================
-			// INICI DEL CANVI: Lògica de cerca millorada
-			// =========================================================================
-			const searchKeywords = normalizedSearch.split(' ').filter(w => w.length > 0);
-			// =========================================================================
-			// FI DEL CANVI
-			// =========================================================================
+		if (controlsContainer && sentinel && placeholder) {
+			const stickyTopOffset = parseInt(contenidorPrincipal.dataset.stickyTopOffset, 10) || 0;
+			const stickyScale = parseFloat(contenidorPrincipal.dataset.stickyScale) || 0.85;
 
-			const equipsVisibles = totsEquips.filter(equipObj => {
-				const nom = equipObj.name.toLowerCase();
-				const nomNormalitzat = nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+			controlsContainer.style.setProperty('--sportic-sticky-top', `${stickyTopOffset}px`);
+			controlsContainer.style.setProperty('--sportic-sticky-scale', stickyScale);
+			
+			const observer = new IntersectionObserver(
+				([entry]) => {
+					if (window.innerWidth <= 960) return; // Desactivat a mòbils
 
-				// 1. Comprovació de gènere (sense canvis)
-				const isMasculi = nom.includes('masculí') || nom.includes('masculi');
-				const isFemeni = nom.includes('femení') || nom.includes('femeni');
-				const isNeutre = !isMasculi && !isFemeni;
+					if (!entry.isIntersecting) {
+						// L'element ha sortit de la vista, el fixem
+						const rect = controlsContainer.getBoundingClientRect();
+						placeholder.style.height = rect.height + 'px';
+						placeholder.style.marginBottom = '25px'; // Mantenim el marge original
+						placeholder.style.display = 'block';
+
+						controlsContainer.style.width = rect.width + 'px';
+						controlsContainer.style.left = rect.left + 'px';
+						controlsContainer.classList.add('is-stuck');
+					} else {
+						// L'element ha tornat a la vista, el retornem a la normalitat
+						placeholder.style.display = 'none';
+						controlsContainer.classList.remove('is-stuck');
+						controlsContainer.style.width = '';
+						controlsContainer.style.left = '';
+					}
+				},
+				{
+					rootMargin: `-${stickyTopOffset}px 0px 0px 0px`,
+					threshold: 1.0,
+				}
+			);
+			
+			observer.observe(sentinel);
+
+			// Recalcular la posició si es canvia la mida de la finestra
+			window.addEventListener('resize', () => {
+				if (controlsContainer.classList.contains('is-stuck')) {
+					// Desenganxem i tornem a enganxar per recalcular mides
+					placeholder.style.display = 'none';
+					controlsContainer.classList.remove('is-stuck');
+					controlsContainer.style.width = '';
+					controlsContainer.style.left = '';
+
+					// Forcem que el navegador actualitzi el layout
+					void controlsContainer.offsetWidth; 
+
+					// I tornem a enganxar amb les mides correctes
+					const rect = controlsContainer.getBoundingClientRect();
+					placeholder.style.height = rect.height + 'px';
+					placeholder.style.marginBottom = '25px';
+					placeholder.style.display = 'block';
+					controlsContainer.style.width = rect.width + 'px';
+					controlsContainer.style.left = rect.left + 'px';
+					controlsContainer.classList.add('is-stuck');
+				}
+			});
+		}
+
+		const dateTriggerBtn = document.getElementById('sportic-date-trigger');
+		const datePopup = document.getElementById('sportic-date-popup');
+		const dateDisplay = document.getElementById('sportic-date-display');
+		const hiddenDateField = document.getElementById('sc_date_hidden');
+
+		if (dateTriggerBtn && datePopup && hiddenDateField) {
+			let currentYear = new Date(hiddenDateField.value).getFullYear();
+			let currentMonth = new Date(hiddenDateField.value).getMonth() + 1;
+			
+			const monthNames = ['Gener', 'Febrer', 'Març', 'Abril', 'Maig', 'Juny', 'Juliol', 'Agost', 'Setembre', 'Octubre', 'Novembre', 'Desembre'];
+			const dayNames = ['Dl', 'Dt', 'Dc', 'Dj', 'Dv', 'Ds', 'Dg'];
+
+			function renderCalendar(year, month) {
+				const firstDay = new Date(year, month - 1, 1);
+				const daysInMonth = new Date(year, month, 0).getDate();
+				let startDayOfWeek = firstDay.getDay(); 
+				startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
 				
-				let genereCorrecte = false;
-				if (sporticFilterState.gender === 'masculi') genereCorrecte = isMasculi || isNeutre;
-				else if (sporticFilterState.gender === 'femeni') genereCorrecte = isFemeni || isNeutre;
-				else genereCorrecte = true;
+				let html = `
+					<div class="cal-header">
+						<button type="button" class="cal-nav-btn" id="cal-prev-month" title="Mes anterior">&lt;</button>
+						<span class="cal-title">${monthNames[month - 1]} ${year}</span>
+						<button type="button" class="cal-nav-btn" id="cal-next-month" title="Mes següent">&gt;</button>
+					</div>
+					<table class="cal-table"><thead><tr>`;
+				dayNames.forEach(d => { html += `<th>${d}</th>`; });
+				html += `</tr></thead><tbody><tr>`;
 
-				if (!genereCorrecte) return false;
+				for (let i = 0; i < startDayOfWeek; i++) { html += '<td></td>'; }
+				
+				for (let day = 1; day <= daysInMonth; day++) {
+					const fullDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+					let classes = 'cal-day';
+					if (fullDate === hiddenDateField.value) classes += ' selected';
+					if (fullDate === '<?php echo current_time('Y-m-d'); ?>') classes += ' today';
 
-				// =========================================================================
-				// INICI DEL CANVI: Lògica de cerca millorada
-				// =========================================================================
-				// 2. Comprovació de cerca per paraules clau
-				if (searchKeywords.length > 0) {
-					const allKeywordsMatch = searchKeywords.every(keyword => nomNormalitzat.includes(keyword));
-					if (!allKeywordsMatch) {
-						return false;
-					}
+					html += `<td class="${classes}"><button type="button" data-date="${fullDate}"><span>${day}</span></button></td>`;
+					if ((day + startDayOfWeek) % 7 === 0 && day < daysInMonth) { html += '</tr><tr>'; }
 				}
-				// =========================================================================
-				// FI DEL CANVI
-				// =========================================================================
-
-				return true;
-			});
-
-			const clausVisibles = new Set(equipsVisibles.map(e => e.key));
-
-			contenidorPrincipal.querySelectorAll('#sportic-team-filter-container .sportic-team-btn').forEach(boto => {
-				boto.style.display = clausVisibles.has(boto.dataset.teamKey) ? '' : 'none';
-			});
-
-			if (mobileTeamList) {
-				mobileTeamList.querySelectorAll('.mobile-team-filter-item').forEach(item => {
-					const checkbox = item.querySelector('input[type="checkbox"]');
-					if (checkbox) {
-						item.style.display = clausVisibles.has(checkbox.dataset.teamKey) ? '' : 'none';
-					}
-				});
+				html += '</tr></tbody></table>';
+				datePopup.innerHTML = html;
 			}
-		}
 
-		function omplirBotonsEquips() {
-			const contEquips = contenidorPrincipal.querySelector('#sportic-team-filter-container');
-			if (!contEquips) return;
-			contEquips.innerHTML = '';
-			
-			totsEquips.sort((a, b) => a.name.localeCompare(b.name)).forEach(equipObj => {
-				const boto = document.createElement('button');
-				boto.className = 'sportic-team-btn';
-				boto.textContent = equipObj.name;
-				boto.dataset.teamKey = equipObj.key;
-				boto.style.display = 'none';
-				if (sporticFilterState.selectedKeys.has(equipObj.key)) {
-					boto.classList.add('active');
+			function updateDate(newDate) {
+				hiddenDateField.value = newDate;
+				const [y, m, d] = newDate.split('-');
+				dateDisplay.textContent = `${d}/${m}/${y}`;
+				datePopup.style.display = 'none';
+			}
+
+			dateTriggerBtn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				const isVisible = datePopup.style.display === 'block';
+				if (isVisible) {
+					datePopup.style.display = 'none';
+				} else {
+					const dateParts = hiddenDateField.value.split('-');
+					currentYear = parseInt(dateParts[0]);
+					currentMonth = parseInt(dateParts[1]);
+					renderCalendar(currentYear, currentMonth);
+					datePopup.style.display = 'block';
 				}
-				contEquips.appendChild(boto);
+			});
+
+			datePopup.addEventListener('click', (e) => {
+				const dayBtn = e.target.closest('button[data-date]');
+				if (dayBtn) {
+					e.preventDefault();
+					updateDate(dayBtn.dataset.date);
+					return;
+				}
+				
+				const prevBtn = e.target.closest('#cal-prev-month');
+				if (prevBtn) {
+					e.stopPropagation(); 
+					currentMonth--;
+					if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+					renderCalendar(currentYear, currentMonth);
+					return;
+				}
+				const nextBtn = e.target.closest('#cal-next-month');
+				if (nextBtn) {
+					e.stopPropagation();
+					currentMonth++;
+					if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+					renderCalendar(currentYear, currentMonth);
+					return;
+				}
+			});
+
+			document.addEventListener('click', (e) => {
+				if (datePopup.style.display === 'block' && !datePopup.contains(e.target) && !e.target.closest('.sportic-date-selector-container')) {
+					datePopup.style.display = 'none';
+				}
 			});
 		}
-		
-		function omplirCheckboxesEquips() {
-			if (!mobileTeamList) return;
-			mobileTeamList.innerHTML = '';
-			
+
+		const totsEquips = <?php echo json_encode($all_teams_for_js); ?>;
+		const modalOverlay = document.getElementById('sportic-filter-modal');
+		const openModalBtn = document.getElementById('sportic-open-filter-modal-btn');
+		const closeModalBtn = document.getElementById('sportic-close-filter-modal-btn');
+		const applyFiltersBtn = document.getElementById('sportic-apply-filters-btn');
+		const modalTeamList = document.getElementById('modal-team-list');
+		const searchInputModal = modalOverlay.querySelector('#sportic_team_search_input_modal');
+		const filterCountBadge = document.getElementById('filter-count-badge');
+		const resetFiltersBtnMain = document.getElementById('sw_reset_filters_main');
+		const sporticFilterState = { selectedKeys: new Set(), searchTerm: '', gender: 'tots' };
+		function openModal() { modalOverlay.classList.add('visible'); }
+		function closeModal() { modalOverlay.classList.remove('visible'); }
+		function omplirModalEquips() {
+			if (!modalTeamList) return;
+			modalTeamList.innerHTML = '';
 			totsEquips.sort((a, b) => a.name.localeCompare(b.name)).forEach(equipObj => {
 				const itemDiv = document.createElement('div');
-				itemDiv.className = 'mobile-team-filter-item';
-				itemDiv.style.display = 'none';
+				itemDiv.className = 'modal-team-item';
 				const label = document.createElement('label');
 				const checkbox = document.createElement('input');
 				checkbox.type = 'checkbox';
@@ -9625,61 +11012,72 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 				label.appendChild(checkbox);
 				label.appendChild(textNode);
 				itemDiv.appendChild(label);
-				mobileTeamList.appendChild(itemDiv);
+				modalTeamList.appendChild(itemDiv);
 			});
 		}
-
-		if (mobileFilterToggle) {
-			mobileFilterToggle.addEventListener('click', () => {
-				mobileFilterContainer.classList.toggle('active');
-			});
+		function actualitzarComptadorFiltres() {
+			const count = sporticFilterState.selectedKeys.size;
+			if (count > 0) {
+				filterCountBadge.textContent = count;
+				filterCountBadge.classList.add('visible');
+			} else {
+				filterCountBadge.classList.remove('visible');
+			}
 		}
-
-		if (mobileTeamList) {
-			mobileTeamList.addEventListener('change', (e) => {
-				if (e.target.type === 'checkbox') {
-					const clau = e.target.dataset.teamKey;
-					if (e.target.checked) {
-						sporticFilterState.selectedKeys.add(clau);
-					} else {
-						sporticFilterState.selectedKeys.delete(clau);
-					}
-					const botoDesktop = contenidorPrincipal.querySelector(`.sportic-team-btn[data-team-key="${clau}"]`);
-					if (botoDesktop) botoDesktop.classList.toggle('active', e.target.checked);
-					aplicarEstilsDeFiltre(contenidorPrincipal);
+		function updateResetButtonVisibility() {
+			if (resetFiltersBtnMain) {
+				if (sporticFilterState.selectedKeys.size > 0) {
+					resetFiltersBtnMain.style.display = 'inline-flex';
+				} else {
+					resetFiltersBtnMain.style.display = 'none';
+				}
+			}
+		}
+		function actualitzarVisibilitatEquips() {
+			const normalizedSearch = sporticFilterState.searchTerm.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+			const searchKeywords = normalizedSearch.split(' ').filter(w => w.length > 0);
+			const equipsVisibles = totsEquips.filter(equipObj => {
+				const nom = equipObj.name.toLowerCase();
+				const nomNormalitzat = nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+				const isMasculi = nom.includes('masculí') || nom.includes('masculi');
+				const isFemeni = nom.includes('femení') || nom.includes('femeni');
+				const isNeutre = !isMasculi && !isFemeni;
+				let genereCorrecte = false;
+				if (sporticFilterState.gender === 'masculi') genereCorrecte = isMasculi || isNeutre;
+				else if (sporticFilterState.gender === 'femeni') genereCorrecte = isFemeni || isNeutre;
+				else genereCorrecte = true;
+				if (!genereCorrecte) return false;
+				if (searchKeywords.length > 0) {
+					return searchKeywords.every(keyword => nomNormalitzat.includes(keyword));
+				}
+				return true;
+			});
+			const clausVisibles = new Set(equipsVisibles.map(e => e.key));
+			modalTeamList.querySelectorAll('.modal-team-item').forEach(item => {
+				const checkbox = item.querySelector('input[type="checkbox"]');
+				if (checkbox) {
+					item.style.display = clausVisibles.has(checkbox.dataset.teamKey) ? '' : 'none';
 				}
 			});
 		}
-
 		function aplicarEstilsDeFiltre(container) {
 			if (!container) return;
-			
 			const celes = container.querySelectorAll('td.sportic-cell');
 			const filtresActius = sporticFilterState.selectedKeys.size > 0;
-
 			celes.forEach(cela => {
 				const bgOriginal = cela.getAttribute('data-original-bg');
 				const colorOriginal = cela.getAttribute('data-original-color');
-				
 				cela.classList.remove('dimmed');
-				
 				if (bgOriginal) cela.style.setProperty('background-color', bgOriginal);
 				if (colorOriginal) {
 					const sp = cela.querySelector('.sportic-text-scalable');
 					if (sp) sp.style.setProperty('color', colorOriginal);
 					else    cela.style.setProperty('color', colorOriginal);
 				}
-
 				if (filtresActius) {
-					const key = (cela.getAttribute('data-team-key') || '').trim();
-					const esSeleccionat = key && sporticFilterState.selectedKeys.has(key);
-
-					if (esSeleccionat) {
-						cela.style.setProperty('background-color', '#0ea5e9', 'important');
-						const sp = cela.querySelector('.sportic-text-scalable');
-						if (sp) sp.style.setProperty('color', '#ffffff', 'important');
-						else cela.style.setProperty('color', '#ffffff', 'important');
-					} else {
+					const teamKeysInCell = (cela.getAttribute('data-team-key') || '').split(' ').filter(k => k);
+					const esSeleccionat = teamKeysInCell.length > 0 && teamKeysInCell.some(key => sporticFilterState.selectedKeys.has(key));
+					if (!esSeleccionat) {
 						cela.classList.add('dimmed');
 						const sp = cela.querySelector('.sportic-text-scalable');
 						const textColor = '#555555';
@@ -9689,17 +11087,14 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 				}
 			});
 		}
-		
 		function netejarEstilsDeFiltre(container) {
 			if (!container) return;
 			container.querySelectorAll('td.sportic-cell').forEach(cela => {
 				const bg = cela.getAttribute('data-original-bg');
 				const col = cela.getAttribute('data-original-color');
-				
 				cela.classList.remove('dimmed');
 				cela.style.removeProperty('background-color');
 				cela.style.removeProperty('color');
-
 				if (bg)  cela.style.setProperty('background-color', bg);
 				if (col) {
 					const sp = cela.querySelector('.sportic-text-scalable');
@@ -9708,186 +11103,118 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 				}
 			});
 		}
-
 		function ferResetComplet() {
 			sporticFilterState.selectedKeys.clear();
 			sporticFilterState.searchTerm = '';
 			sporticFilterState.gender = 'tots';
-
 			netejarEstilsDeFiltre(contenidorPrincipal);
-
-			contenidorPrincipal.querySelectorAll('.desktop-filters .sportic-team-btn').forEach(b => b.classList.remove('active'));
-			contenidorPrincipal.querySelectorAll('.desktop-filters .sportic-gender-filters .sportic-filter-btn').forEach(b => b.classList.remove('active'));
-			const bTotsDesktop = contenidorPrincipal.querySelector('.desktop-filters .sportic-gender-filters .sportic-filter-btn[data-gender-filter="tots"]');
-			if (bTotsDesktop) bTotsDesktop.classList.add('active');
-			if (searchInputDesktop) searchInputDesktop.value = '';
-			
-			contenidorPrincipal.querySelectorAll('#mobile-team-list input[type="checkbox"]').forEach(cb => cb.checked = false);
-			contenidorPrincipal.querySelectorAll('.mobile-filter-container .sportic-gender-filters .sportic-filter-btn').forEach(b => b.classList.remove('active'));
-			const bTotsMobile = contenidorPrincipal.querySelector('.mobile-filter-container .sportic-gender-filters .sportic-filter-btn[data-gender-filter="tots"]');
-			if (bTotsMobile) bTotsMobile.classList.add('active');
-			if (searchInputMobile) searchInputMobile.value = '';
-
+			modalOverlay.querySelectorAll('.sportic-gender-filters .sportic-filter-btn').forEach(b => b.classList.remove('active'));
+			const bTotsModal = modalOverlay.querySelector('.sportic-gender-filters .sportic-filter-btn[data-gender-filter="tots"]');
+			if (bTotsModal) bTotsModal.classList.add('active');
+			if (searchInputModal) searchInputModal.value = '';
+			modalOverlay.querySelectorAll('#modal-team-list input[type="checkbox"]').forEach(cb => cb.checked = false);
 			actualitzarVisibilitatEquips();
-
-			if (mobileFilterContainer && mobileFilterContainer.classList.contains('active')) {
-				mobileFilterToggle.click();
-			}
+			actualitzarComptadorFiltres();
+			updateResetButtonVisibility();
 		}
 
-		contenidorPrincipal.addEventListener('click', (e) => {
+		if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+		if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+		if (modalOverlay) modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+		if(applyFiltersBtn) { applyFiltersBtn.addEventListener('click', () => { aplicarEstilsDeFiltre(contenidorPrincipal); actualitzarComptadorFiltres(); updateResetButtonVisibility(); closeModal(); }); }
+		modalOverlay.addEventListener('click', (e) => {
 			const botoGenere = e.target.closest('.sportic-gender-filters .sportic-filter-btn');
-			const botoEquip  = e.target.closest('#sportic-team-filter-container .sportic-team-btn');
-			const botoReset  = e.target.closest('#sw_reset_filters, #sw_reset_filters_mobile');
-
-			if (botoReset) {
-				ferResetComplet();
-				return;
-			}
-
+			const botoReset  = e.target.closest('#sw_reset_filters');
+			if (botoReset) { ferResetComplet(); return; }
 			if (botoGenere) {
 				const tipus = botoGenere.dataset.genderFilter;
 				sporticFilterState.gender = tipus;
-				
-				contenidorPrincipal.querySelectorAll('.sportic-gender-filters .sportic-filter-btn').forEach(b => b.classList.remove('active'));
-				contenidorPrincipal.querySelectorAll(`.sportic-gender-filters .sportic-filter-btn[data-gender-filter="${tipus}"]`).forEach(b => b.classList.add('active'));
-				
+				modalOverlay.querySelectorAll('.sportic-gender-filters .sportic-filter-btn').forEach(b => b.classList.remove('active'));
+				botoGenere.classList.add('active');
 				actualitzarVisibilitatEquips();
 				return;
 			}
-
-			if (botoEquip) {
-				botoEquip.classList.toggle('active');
-				const clau = botoEquip.dataset.teamKey;
-
-				if (botoEquip.classList.contains('active')) {
-					sporticFilterState.selectedKeys.add(clau);
-				} else {
-					sporticFilterState.selectedKeys.delete(clau);
-				}
+		});
+		modalTeamList.addEventListener('change', (e) => { if (e.target.type === 'checkbox') { const clau = e.target.dataset.teamKey; if (e.target.checked) sporticFilterState.selectedKeys.add(clau); else sporticFilterState.selectedKeys.delete(clau); } });
+		if (searchInputModal) searchInputModal.addEventListener('input', (e) => { sporticFilterState.searchTerm = e.target.value; actualitzarVisibilitatEquips(); });
+		if (resetFiltersBtnMain) { resetFiltersBtnMain.addEventListener('click', () => { ferResetComplet(); }); }
+		contenidorPrincipal.addEventListener('click', (e) => {
+			const cela = e.target.closest('.sportic-cell[data-team-key]');
+			if (!cela) return;
+			const teamKey = cela.dataset.teamKey;
+			if (!teamKey || teamKey === 'l' || teamKey === 'b') return;
+			const firstTeamKey = teamKey.split(' ')[0];
+			if (sporticFilterState.selectedKeys.size === 1 && sporticFilterState.selectedKeys.has(firstTeamKey)) {
+				ferResetComplet();
+			} else {
+				sporticFilterState.selectedKeys.clear();
+				sporticFilterState.selectedKeys.add(firstTeamKey);
 				aplicarEstilsDeFiltre(contenidorPrincipal);
-				
-				const mobileCheckbox = mobileTeamList.querySelector(`input[type="checkbox"][data-team-key="${clau}"]`);
-				if(mobileCheckbox) mobileCheckbox.checked = botoEquip.classList.contains('active');
-				return;
+				actualitzarComptadorFiltres();
+				updateResetButtonVisibility();
 			}
 		});
-		
-		function handleSearchInput(e) {
-			sporticFilterState.searchTerm = e.target.value;
-			if (searchInputDesktop && searchInputMobile) {
-				if (e.target === searchInputDesktop) {
-					searchInputMobile.value = sporticFilterState.searchTerm;
-				} else {
-					searchInputDesktop.value = sporticFilterState.searchTerm;
-				}
-			}
-			actualitzarVisibilitatEquips();
-		}
-
-		if (searchInputDesktop) searchInputDesktop.addEventListener('input', handleSearchInput);
-		if (searchInputMobile) searchInputMobile.addEventListener('input', handleSearchInput);
-		
-		function parseRGBColor(str) {
-			if (!str) return [255, 255, 255];
-			let m = str.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-			if (m) return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)];
-			let hex = str.replace('#', '').trim();
-			if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
-			if (hex.length === 6) {
-				const r = parseInt(hex.substring(0, 2), 16),
-					  g = parseInt(hex.substring(2, 4), 16),
-					  b = parseInt(hex.substring(4, 6), 16);
-				if (!isNaN(r) && !isNaN(g) && !isNaN(b)) return [r, g, b];
-			}
-			return [255, 255, 255];
-		}
-
-		function getTextColorForBackground(r, g, b) {
-			var brightness = (0.299 * r + 0.587 * g + 0.114 * b);
-			return (brightness < 130) ? '#ffffff' : '#000000';
-		}
-		function updateTextContrast(cela) {
-			if (!cela) return;
-			var bg = window.getComputedStyle(cela).backgroundColor;
-			var rgb = parseRGBColor(bg);
-			if(!rgb) return;
-			var colorText = getTextColorForBackground(rgb[0], rgb[1], rgb[2]);
-			var span = cela.querySelector('.sportic-text-scalable');
-			if (span) { span.style.setProperty('color', colorText, 'important'); }
-			else { cela.style.setProperty('color', colorText, 'important'); }
-		}
+		function parseRGBColor(str) { if (!str) return [255, 255, 255]; let m = str.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/); if (m) return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)]; let hex = str.replace('#', '').trim(); if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2]; if (hex.length === 6) { const r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16); if (!isNaN(r) && !isNaN(g) && !isNaN(b)) return [r, g, b]; } return [255, 255, 255]; }
+		function getTextColorForBackground(r, g, b) { var brightness = (0.299 * r + 0.587 * g + 0.114 * b); return (brightness < 130) ? '#ffffff' : '#000000'; }
+		function updateTextContrast(cela) { if (!cela) return; var bg = window.getComputedStyle(cela).backgroundColor; var rgb = parseRGBColor(bg); if(!rgb) return; var colorText = getTextColorForBackground(rgb[0], rgb[1], rgb[2]); var span = cela.querySelector('.sportic-text-scalable'); if (span) { span.style.setProperty('color', colorText, 'important'); } else { cela.style.setProperty('color', colorText, 'important'); } }
 		function scaleTextToFit() {
 			const elements = document.querySelectorAll('.sportic-text-scalable');
-			elements.forEach(el => {
-				if (!el.parentElement) return;
-				el.style.transform = 'scale(1)';
-				el.style.whiteSpace = 'nowrap';
-				const parent = el.parentElement;
-				const parentWidth = parent.clientWidth - 4;
-				const parentHeight = parent.clientHeight - 4;
-				const elWidth = el.scrollWidth;
-				const elHeight = el.scrollHeight;
-				el.style.whiteSpace = 'normal';
-				if (elWidth > parentWidth || elHeight > parentHeight) {
-					const scale = Math.min(parentWidth / elWidth, parentHeight / elHeight);
-					el.style.transform = 'scale(' + scale + ')';
-				}
-			});
-		}
-
-		const wrap = document.querySelector('.sw_wrap'); 
-		const sc = document.querySelector('.sw_scaler');
-		if (!wrap || !sc) { console.error('SPORTIC: Elements .sw_wrap o .sw_scaler no trobats.'); return; }
-
-		function fit(){
-			if (!wrap || !sc) return;
-			if (window.innerWidth <= 768) {
-				sc.style.transform = ''; 
-				wrap.style.height = 'auto'; 
-				return;
+			if (window.innerWidth <= 960) {
+				const BASE_FONT_SIZE = 12; const MIN_FONT_SIZE = 9.5; 
+				elements.forEach(el => {
+					if (!el.parentElement) return;
+					el.style.transform = ''; el.style.fontSize = BASE_FONT_SIZE + 'px';
+					const parent = el.parentElement; const parentWidth = parent.clientWidth - 8; const parentHeight = parent.clientHeight - 8;
+					if (parentWidth <= 0 || parentHeight <= 0) return;
+					el.style.whiteSpace = 'nowrap';
+					const singleLineWidth = el.scrollWidth; const singleLineHeight = el.scrollHeight;
+					let scaleNonWrapped = 1;
+					if (singleLineWidth > parentWidth || singleLineHeight > parentHeight) { scaleNonWrapped = Math.min(parentWidth / singleLineWidth, parentHeight / singleLineHeight); }
+					let scaleWrapped = 0;
+					if (el.textContent.includes(' ')) {
+						el.style.whiteSpace = 'normal'; const wrappedHeight = el.scrollHeight;
+						if (wrappedHeight > parentHeight) { scaleWrapped = parentHeight / wrappedHeight; } else { scaleWrapped = 1; }
+					}
+					const finalScale = Math.max(scaleNonWrapped, scaleWrapped); let newFontSize = BASE_FONT_SIZE * finalScale; const finalFontSize = Math.max(newFontSize, MIN_FONT_SIZE);
+					el.style.fontSize = finalFontSize + 'px'; el.style.whiteSpace = 'normal';
+				});
+			} else {
+				elements.forEach(el => {
+					if (!el.parentElement) return;
+					el.style.transform = 'scale(1)'; el.style.fontSize = ''; el.style.whiteSpace = 'nowrap';
+					const parent = el.parentElement; const parentWidth = parent.clientWidth - 4; const parentHeight = parent.clientHeight - 4;
+					const elWidth = el.scrollWidth; const elHeight = el.scrollHeight;
+					el.style.whiteSpace = 'normal';
+					if (elWidth > parentWidth || elHeight > parentHeight) {
+						const scale = Math.min(parentWidth / elWidth, parentHeight / elHeight);
+						el.style.transform = 'scale(' + scale + ')';
+					}
+				});
 			}
-			sc.style.transform = '';
-			wrap.style.height = sc.getBoundingClientRect().height + 'px';
 		}
-
-		window.addEventListener('resize', ()=>{ clearTimeout(fit._t); fit._t = setTimeout(fit,150); });
-
-		function load(msg){
-			const loaderTxt = document.getElementById('sw_loader_txt');
-			const loader = document.getElementById('sw_loader');
-			if(loaderTxt) loaderTxt.textContent = msg;
-			if(loader) loader.style.display = 'block';
-		}
-		function end(){
-			const loader = document.getElementById('sw_loader');
-			if(loader) loader.style.display = 'none';
-		}
-
+		const wrap = document.querySelector('.sw_wrap'); const sc = document.querySelector('.sw_scaler');
+		if (!wrap || !sc) { console.error('SPORTIC: Elements .sw_wrap o .sw_scaler no trobats.'); return; }
+		function fit(){ if (!wrap || !sc) return; if (window.innerWidth <= 960) { sc.style.transform = ''; wrap.style.height = 'auto'; return; } sc.style.transform = ''; wrap.style.height = sc.getBoundingClientRect().height + 'px'; }
+		let resizeTimeout; window.addEventListener('resize', ()=>{ clearTimeout(resizeTimeout); resizeTimeout = setTimeout(() => { fit(); scaleTextToFit(); }, 150); });
+		function load(msg){ const loaderTxt = document.getElementById('sw_loader_txt'); const loader = document.getElementById('sw_loader'); if(loaderTxt) loaderTxt.textContent = msg; if(loader) loader.style.display = 'block'; }
+		function end(){ const loader = document.getElementById('sw_loader'); if(loader) loader.style.display = 'none'; }
 		const ds = "<?php echo esc_js($ds); ?>";
-		
 		const exportWeekButton = document.getElementById('sw_export_week');
 		if (exportWeekButton) {
 			exportWeekButton.onclick = e => {
 				e.preventDefault();
-				const box = document.getElementById('sw_dina3');
-				if (!box) { alert("Element DINA3 no trobat."); return; }
-				load("Generant DINA3…");
-				
-				aplicarEstilsDeFiltre(box);
-
+				const box = document.getElementById('sw_dina3'); if (!box) { alert("Element DINA3 no trobat."); return; }
+				load("Generant DINA3…"); aplicarEstilsDeFiltre(box);
 				box.style.display = 'block'; box.style.left = '0'; box.style.zIndex = '9999';
 				scaleTextToFit();
 				setTimeout(() => {
-					const marge = 50; const W = box.scrollWidth + marge; const H = box.scrollHeight; 
-					box.style.width  = W + 'px'; box.style.height = H + 'px';
+					const marge = 50; const W = box.scrollWidth + marge; const H = box.scrollHeight; box.style.width  = W + 'px'; box.style.height = H + 'px';
 					html2canvas(box, { scale:1.0, useCORS:true, backgroundColor:'#fff', width: W, height: H, windowWidth: W, windowHeight: H, imageTimeout:20000 })
 					.then(cv => {
 						const R = Math.SQRT2; let w_cv = cv.width, h_cv = cv.height, newW, newH;
 						if (w_cv/h_cv > R){ newW = w_cv; newH = Math.round(w_cv / R); } else { newH = h_cv; newW = Math.round(h_cv * R); }
 						const out = document.createElement('canvas'); out.width  = newW; out.height = newH;
-						const ctx  = out.getContext('2d');
-						ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,newW,newH); 
+						const ctx  = out.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,newW,newH); 
 						const s_scale  = Math.min(newW / w_cv, newH / h_cv); 
 						const dx = (newW - w_cv*s_scale) / 2; const dy = (newH - h_cv*s_scale) / 2; 
 						ctx.drawImage(cv, 0, 0, w_cv, h_cv, dx, dy, w_cv*s_scale, h_cv*s_scale);
@@ -9895,32 +11222,26 @@ if ( ! function_exists('sportic_independent_shortcode_function') ) {
 					})
 					.catch((error)=>{ console.error("Error en html2canvas (setmana): ", error); alert("Hi ha hagut un error capturant la setmana."); })
 					.finally(()=>{
-						netejarEstilsDeFiltre(box);
-						box.style.display = 'none'; box.style.left = '-9999px'; box.style.zIndex = '-1'; box.style.width = '12840px'; box.style.height = ''; 
+						netejarEstilsDeFiltre(box); box.style.display = 'none'; box.style.left = '-9999px'; box.style.zIndex = '-1'; box.style.width = '12840px'; box.style.height = ''; 
 						end();
 					});
 				}, 100);
 			};
 		}
-		
-		fit(); 
-		scaleTextToFit();
+		fit(); scaleTextToFit();
 		const totesCelesDades = document.querySelectorAll('.sw_wrap table td, #sw_dina3 table td');
 		totesCelesDades.forEach(c => { if(c.cellIndex > 0) { updateTextContrast(c); } });
-
-		omplirBotonsEquips();
-		omplirCheckboxesEquips();
+		omplirModalEquips();
 		ferResetComplet();
-
 	});
 	</script>
 	<?php return ob_get_clean();
-	}
 }
-	if ( function_exists('sportic_independent_shortcode_function') ) {
-		add_shortcode('sportic_frontend_custom_dayview_subitems_independent',
-					  'sportic_independent_shortcode_function');
-	}}
+}
+
+if ( function_exists('sportic_independent_shortcode_function') ) {
+	add_shortcode('sportic_frontend_custom_dayview_subitems_independent', 'sportic_independent_shortcode_function');
+}}
 
 
 // Funció auxiliar per treure el prefix '!' de les dades carregades
@@ -10038,18 +11359,18 @@ if (!function_exists('sportic_clear_all_week_transients')) {
 
 
 if ( ! function_exists('_sportic_unfile_render_template_table') ) {
-	function _sportic_unfile_render_template_table($title, $templates_array, $page_slug, $lloc_slug) {
+	function _sportic_unfile_render_template_table($title, $templates_array, $page_slug) {
 		echo '<div class="card" style="margin-bottom: 30px;">'; 
 		echo '<h2 class="title" style="margin-bottom: 20px; font-size: 22px;">' . esc_html($title) . '</h2>'; 
 
 		if (empty($templates_array)) {
-			echo '<p>No hi ha plantilles d\'aquest tipus per a aquest lloc.</p>';
+			echo '<p>No hi ha plantilles d\'aquest tipus.</p>';
 		} else {
 			echo '<table class="wp-list-table widefat striped sportic-templates-table">';
 			echo '<thead><tr>';
-			echo '<th style="width: 35%;">Nom</th>';
+			echo '<th style="width: 35%;">Nom</th>'; // Ajustem amplades
 			echo '<th style="width: 20%;">Data de Creació</th>';
-			echo '<th style="width: 45%;">Accions</th>';
+			echo '<th style="width: 45%;">Accions</th>'; // Ajustem amplades
 			echo '</tr></thead>';
 			echo '<tbody>';
 			foreach ($templates_array as $pid => $p_data) {
@@ -10068,16 +11389,18 @@ if ( ! function_exists('_sportic_unfile_render_template_table') ) {
 				echo '<td>' . $created_at_display . '</td>';
 
 				echo '<td>';
-				$edit_url = add_query_arg(['tmpl_action' => 'edit', 'tmpl_id' => $pid, 'lloc' => $lloc_slug], admin_url('admin.php?page=' . $page_slug));
-				echo '<a class="button" href="' . esc_url($edit_url) . '">✏️ Editar</a> ';
+				echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=' . $page_slug . '&tmpl_action=edit&tmpl_id=' . $pid)) . '">✏️ Editar</a> ';
 				
+				// =========================================================================
+				// === INICI DEL CANVI: AFEGIM EL NOU BOTÓ 'PDF' ===
+				// =========================================================================
 				echo '<button type="button" class="button button-primary sportic-generate-template-pdf-btn" data-template-id="' . esc_attr($pid) . '" title="Generar vista setmanal en PDF/JPG">📄 PDF</button> ';
+				// =========================================================================
+				// === FI DEL CANVI ===
+				// =========================================================================
 				
-				$duplicate_url = add_query_arg(['tmpl_action' => 'duplicate', 'tmpl_id' => $pid, 'lloc' => $lloc_slug], admin_url('admin.php?page=' . $page_slug));
-				echo '<a class="button button-secondary" href="' . esc_url($duplicate_url) . '">📋 Duplicar</a> ';
-
-				$delete_url = add_query_arg(['tmpl_action' => 'delete', 'tmpl_id' => $pid, 'lloc' => $lloc_slug], admin_url('admin.php?page=' . $page_slug));
-				echo '<a class="button button-danger" href="' . esc_url($delete_url) . '" onclick="return confirm(\'Segur que vols eliminar aquesta plantilla: ' . esc_js(stripslashes($p_data['name'])) . '?\');">🗑️ Eliminar</a> ';
+				echo '<a class="button button-secondary" href="' . esc_url(admin_url('admin.php?page=' . $page_slug . '&tmpl_action=duplicate&tmpl_id=' . $pid)) . '">📋 Duplicar</a> ';
+				echo '<a class="button button-danger" href="' . esc_url(admin_url('admin.php?page=' . $page_slug . '&tmpl_action=delete&tmpl_id=' . $pid)) . '" onclick="return confirm(\'Segur que vols eliminar aquesta plantilla: ' . esc_js(stripslashes($p_data['name'])) . '?\');">🗑️ Eliminar</a> ';
 				echo '</td>';
 				echo '</tr>';
 			}
@@ -10098,25 +11421,28 @@ function sportic_unfile_guardar_plantilla_completa_cb() {
 		wp_die( 'No tens permisos per desar plantilles.' );
 	}
 
-	$lloc_slug     = isset( $_POST['lloc'] ) ? sanitize_key( $_POST['lloc'] ) : '';
+	// <-- INICI DE LA CORRECCIÓ: Obtenim el 'lloc_slug' que ve del formulari -->
+	$lloc_slug = isset($_POST['lloc']) ? sanitize_key($_POST['lloc']) : '';
+	if (empty($lloc_slug)) {
+		wp_die('Error crític: No s\'ha pogut determinar el lloc per al qual desar la plantilla. Contacta amb l\'administrador.');
+	}
+	// <-- FI DE LA CORRECCIÓ -->
+
+	// <-- CORRECCIÓ: Passem el 'lloc_slug' a la funció -->
+	$plantilles = sportic_unfile_get_plantilles($lloc_slug);
+
 	$tmpl_id       = isset( $_POST['tmpl_id'] ) ? sanitize_text_field( $_POST['tmpl_id'] ) : '';
 	$nom_plantilla = isset( $_POST['tmpl_name'] ) ? stripslashes(sanitize_text_field( $_POST['tmpl_name'] )) : 'Sense nom';
 	$tipus         = isset( $_POST['tmpl_type'] ) ? sanitize_text_field( $_POST['tmpl_type'] ) : 'day';
 	$piscina_single_seleccionada = ($tipus === 'single' && isset($_POST['tmpl_piscina'])) ? sanitize_text_field($_POST['tmpl_piscina']) : 'infantil';
-	
-	if (empty($lloc_slug)) {
-		wp_die('Error crític: No s\'ha pogut determinar el lloc per desar la plantilla.');
-	}
-
-	$plantilles = sportic_unfile_get_plantilles($lloc_slug);
 
 	$is_new_template_flag = empty($tmpl_id);
 	if ($is_new_template_flag) {
 		$tmpl_id = uniqid('tmpl_');
 	}
-	
-	$referer_url_args = ['page' => 'sportic-onefile-templates', 'tmpl_action' => 'edit', 'tmpl_id' => $tmpl_id, 'lloc' => $lloc_slug];
-	$referer_url = add_query_arg($referer_url_args, admin_url('admin.php'));
+
+	// <-- CORRECCIÓ: Afegim el 'lloc' a la URL de redirecció -->
+	$referer_url = admin_url('admin.php?page=sportic-onefile-templates&tmpl_action=edit&tmpl_id=' . $tmpl_id . '&lloc=' . $lloc_slug);
 
 	if (empty(trim($nom_plantilla))) {
 		$redirect_url = add_query_arg( 'error_msg', urlencode( 'El nom de la plantilla no pot estar buit.' ), $referer_url );
@@ -10130,7 +11456,7 @@ function sportic_unfile_guardar_plantilla_completa_cb() {
 			isset($info_plantilla_existent['name']) && strcasecmp( stripslashes($info_plantilla_existent['name']), stripslashes($nom_plantilla) ) === 0 &&
 			isset( $info_plantilla_existent['type'] ) && $info_plantilla_existent['type'] === $tipus
 		) {
-			$error_message = 'Ja existeix una plantilla amb el nom "' . esc_html(stripslashes($nom_plantilla)) . '" per al tipus "' . esc_html($tipus) . '" en aquest lloc. Si us plau, utilitza un nom diferent.';
+			$error_message = 'Ja existeix una plantilla amb el nom "' . esc_html(stripslashes($nom_plantilla)) . '" per al tipus "' . esc_html($tipus) . '". Si us plau, utilitza un nom diferent.';
 			$redirect_url = add_query_arg( 'error_msg', urlencode( $error_message ), $referer_url );
 			if ($is_new_template_flag) {
 				$redirect_url = add_query_arg( ['tmpl_name_val' => urlencode($nom_plantilla), 'tmpl_type_val' => $tipus], $redirect_url);
@@ -10187,6 +11513,8 @@ function sportic_unfile_guardar_plantilla_completa_cb() {
 
 	$data_plantilla_actual['data'] = $horaris_data_parsed;
 	$plantilles[$tmpl_id] = $data_plantilla_actual;
+	
+	// <-- CORRECCIÓ: Passem el 'lloc_slug' i les plantilles d'aquest lloc -->
 	sportic_unfile_save_plantilles( $lloc_slug, $plantilles );
 
 	$redirect_param_key = $is_new_template_flag ? 'created' : 'saved';
@@ -10508,70 +11836,317 @@ if ( ! function_exists( 'sportic_carregar_finestra_bd' ) ) {
 	  * @return array mateix format que sportic_carregar_tot_com_array()
 	  */
 function sportic_carregar_finestra_bd( $data_base, $dies_endavant = 7, $dies_enrere = 6 ) {
-			global $wpdb;
-			$ini = date('Y-m-d', strtotime("-$dies_enrere days", strtotime($data_base)));
-			$fi  = date('Y-m-d', strtotime("+$dies_endavant days", strtotime($data_base)));
-		
-			$t_prog  = $wpdb->prefix . 'sportic_programacio';
-			$t_lock  = $wpdb->prefix . (defined('SPORTIC_LOCK_TABLE') ? SPORTIC_LOCK_TABLE : 'sportic_bloqueig');
-			
-			$piscines = sportic_unfile_get_pool_labels_sorted();
-			$slugs    = array_keys($piscines);
-			$ret      = array_fill_keys($slugs, []);
-		
-			$sql = $wpdb->prepare("SELECT piscina_slug, dia_data, hores_serial FROM $t_prog WHERE dia_data BETWEEN %s AND %s", $ini, $fi);
-			$rows = $wpdb->get_results($sql, ARRAY_A);
-			foreach ($rows as $r) {
-				if (!in_array($r['piscina_slug'], $slugs, true)) continue;
-				$hores = @maybe_unserialize($r['hores_serial']);
-				if (!is_array($hores)) $hores = sportic_unfile_crear_programacio_default($r['piscina_slug']);
-				$ret[$r['piscina_slug']][$r['dia_data']] = $hores;
-			}
-		
-			$period = new DatePeriod(new DateTime($ini), new DateInterval('P1D'), (new DateTime($fi))->modify('+1 day'));
-			foreach ($slugs as $slug) {
-				foreach ($period as $date_obj) {
-					$d = $date_obj->format('Y-m-d');
-					if (!isset($ret[$slug][$d])) {
-						$ret[$slug][$d] = sportic_unfile_crear_programacio_default($slug);
-					}
-				}
-			}
-		
-			// NOTA: Eliminat el PAS 1 d'esdeveniments recurrents i excepcions.
-		
-			// PAS 2: Apliquem bloquejos manuals (sense canvis)
-			$locks = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $t_lock WHERE dia_data BETWEEN %s AND %s", $ini, $fi), ARRAY_A);
-			$map = [];
-			foreach ($locks as $l) $map[$l['piscina_slug']][$l['dia_data']][$l['hora']][intval($l['carril_index'])] = true;
-			
-			foreach ($ret as $slug => &$dies) {
-				if (!isset($map[$slug])) continue;
-				foreach ($dies as $d => &$hores) {
-					if (!isset($map[$slug][$d])) continue;
-					foreach ($hores as $h => &$carrils) {
-						if (!isset($map[$slug][$d][$h])) continue;
-						foreach ($carrils as $idx => &$val) {
-							if (isset($map[$slug][$d][$h][$idx]) && strpos($val, '!') !== 0) {
-								$val = '!' . $val;
-							}
-						}
-						unset($val);
-					}
-					unset($carrils);
-				}
-				unset($hores);
-			}
-			unset($dies);
-			
-			return $ret;
-		}
-	   }
+		  global $wpdb;
+		  $ini = date('Y-m-d', strtotime("-$dies_enrere days", strtotime($data_base)));
+		  $fi  = date('Y-m-d', strtotime("+$dies_endavant days", strtotime($data_base)));
+	  
+		  $t_prog  = $wpdb->prefix . 'sportic_programacio';
+		  $t_lock  = $wpdb->prefix . (defined('SPORTIC_LOCK_TABLE') ? SPORTIC_LOCK_TABLE : 'sportic_bloqueig');
+		  // NOU: Nom de la taula d'excepcions
+		  $t_excepcions = $wpdb->prefix . 'sportic_recurrent_exceptions';
+		  
+		  $piscines = sportic_unfile_get_pool_labels_sorted();
+		  $slugs    = array_keys($piscines);
+		  $ret      = array_fill_keys($slugs, []);
+	  
+		  $sql = $wpdb->prepare("SELECT piscina_slug, dia_data, hores_serial FROM $t_prog WHERE dia_data BETWEEN %s AND %s", $ini, $fi);
+		  $rows = $wpdb->get_results($sql, ARRAY_A);
+		  foreach ($rows as $r) {
+			  if (!in_array($r['piscina_slug'], $slugs, true)) continue;
+			  $hores = @maybe_unserialize($r['hores_serial']);
+			  if (!is_array($hores)) $hores = sportic_unfile_crear_programacio_default($r['piscina_slug']);
+			  $ret[$r['piscina_slug']][$r['dia_data']] = $hores;
+		  }
+	  
+		  $period = new DatePeriod(new DateTime($ini), new DateInterval('P1D'), (new DateTime($fi))->modify('+1 day'));
+		  foreach ($slugs as $slug) {
+			  foreach ($period as $date_obj) {
+				  $d = $date_obj->format('Y-m-d');
+				  if (!isset($ret[$slug][$d])) {
+					  $ret[$slug][$d] = sportic_unfile_crear_programacio_default($slug);
+				  }
+			  }
+		  }
+	  
+		  // NOU: Carreguem el mapa d'excepcions per al rang de dates
+		  $exceptions_raw = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $t_excepcions WHERE dia_data BETWEEN %s AND %s", $ini, $fi), ARRAY_A);
+		  $exceptions_map = [];
+		  foreach ($exceptions_raw as $ex) {
+			  $exceptions_map[$ex['piscina_slug']][$ex['dia_data']][$ex['hora']][(int)$ex['carril_index']] = true;
+		  }
+	  
+		  // PAS 1: Apliquem esdeveniments recurrents
+		  $recurrent_events_map = sportic_get_all_recurrent_events_map();
+		  foreach($recurrent_events_map as $date_str => $pools_in_date) {
+			  if ($date_str < $ini || $date_str > $fi) continue;
+			  foreach($pools_in_date as $pool_slug => $hours_in_pool) {
+				  if (!in_array($pool_slug, $slugs)) continue;
+				  if (!isset($ret[$pool_slug][$date_str])) $ret[$pool_slug][$date_str] = sportic_unfile_crear_programacio_default($pool_slug);
+				  
+				  $num_carrils_piscina = $piscines[$pool_slug]['lanes'] ?? 0;
+				  
+				  foreach($hours_in_pool as $hour => $rules_for_hour) {
+					  if (isset($ret[$pool_slug][$date_str][$hour])) {
+						  foreach ($rules_for_hour as $event_details) {
+							  $lanes_to_apply = $event_details['lanes'];
+							  $new_value = $event_details['letter']; 
+							  
+							  if (is_null($lanes_to_apply) || empty($lanes_to_apply)) {
+								  foreach ($ret[$pool_slug][$date_str][$hour] as $c_idx => $c_val) {
+									  // NOU: Comprovació d'excepció abans d'aplicar
+									  if (isset($exceptions_map[$pool_slug][$date_str][$hour][$c_idx])) {
+										  continue; // Aquesta cel·la té una excepció, la saltem.
+									  }
+									  if (strpos($c_val, '!') !== 0) {
+										  $ret[$pool_slug][$date_str][$hour][$c_idx] = $new_value;
+									  }
+								  }
+							  } else {
+								  foreach($lanes_to_apply as $lane_index_from_1) {
+									  $lane_index_0 = $lane_index_from_1 - 1;
+									  if ($lane_index_0 >= 0 && $lane_index_0 < $num_carrils_piscina) {
+										  // NOU: Comprovació d'excepció abans d'aplicar
+										  if (isset($exceptions_map[$pool_slug][$date_str][$hour][$lane_index_0])) {
+											  continue; // Aquesta cel·la té una excepció, la saltem.
+										  }
+										  if (strpos($ret[$pool_slug][$date_str][$hour][$lane_index_0], '!') !== 0) {
+											  $ret[$pool_slug][$date_str][$hour][$lane_index_0] = $new_value;
+										  }
+									  }
+								  }
+							  }
+						  }
+					  }
+				  }
+			  }
+		  }
+	  
+		  // PAS 2: Apliquem bloquejos manuals (sense canvis)
+		  $locks = $wpdb->get_results($wpdb->prepare("SELECT piscina_slug, dia_data, hora, carril_index FROM $t_lock WHERE dia_data BETWEEN %s AND %s", $ini, $fi), ARRAY_A);
+		  $map = [];
+		  foreach ($locks as $l) $map[$l['piscina_slug']][$l['dia_data']][$l['hora']][intval($l['carril_index'])] = true;
+		  
+		  foreach ($ret as $slug => &$dies) {
+			  if (!isset($map[$slug])) continue;
+			  foreach ($dies as $d => &$hores) {
+				  if (!isset($map[$slug][$d])) continue;
+				  foreach ($hores as $h => &$carrils) {
+					  if (!isset($map[$slug][$d][$h])) continue;
+					  foreach ($carrils as $idx => &$val) {
+						  if (isset($map[$slug][$d][$h][$idx]) && strpos($val, '!') !== 0) {
+							  $val = '!' . $val;
+						  }
+					  }
+					  unset($val);
+				  }
+				  unset($carrils);
+			  }
+			  unset($hores);
+		  }
+		  unset($dies);
+		  
+		  return $ret;
+	  }
+   }
 
-
+/* =========================================================================
+  * INICI FUNCIÓ CORREGIDA – SUBSTITUEIX L'ORIGINAL
+  * Aquesta versió adapta l'editor d'esdeveniments recurrents per
+  * utilitzar descripcions completes en lloc de lletres.
+  * =========================================================================*/
+ function sportic_render_activity_block($index, $data, $all_pools, $custom_letters, $subitems_map, $time_slots) {
+	 $is_new_block = empty($data);
+	 $container_class = $is_new_block ? 'activity-block is-open' : 'activity-block is-closed';
  
+	 $piscina_slug       = $data['piscina_slug'] ?? '';
+	 // Canviem de 'activity_letter' a 'activity_description' per claredat
+	 $activity_description = $data['activity_description'] ?? ''; 
+	 $activity_subitem   = $data['activity_subitem'] ?? '';
+	 $time_lane_rules    = $data['time_lane_rules'] ?? [];
+	 $date_ranges        = $data['date_ranges'] ?? [];
+	 
+	 $block_title = 'Bloc d\'Activitat';
+	 if ($piscina_slug && isset($all_pools[$piscina_slug])) {
+		 $block_title = 'Pavelló: ' . $all_pools[$piscina_slug]['label'];
+	 }
+	 if ($activity_description) {
+		 $block_title .= ' - Activitat: ' . $activity_description;
+		 if (!empty($activity_subitem)) {
+			 $block_title .= ' (' . $activity_subitem . ')';
+		 }
+	 }
+	 ?>
+	 <div class="<?php echo $container_class; ?>" data-index="<?php echo esc_attr($index); ?>">
+		 <div class="activity-block-header">
+			 <h3 class="block-title"><?php echo esc_html($block_title); ?></h3>
+			 <div class="header-actions">
+				 <button type="button" class="button-icon remove-activity-block-btn" title="Elimina aquest bloc"><span class="dashicons dashicons-trash"></span></button>
+				 <span class="dashicons toggle-arrow <?php echo $is_new_block ? 'dashicons-arrow-up-alt2' : 'dashicons-arrow-down-alt2'; ?>"></span>
+			 </div>
+		 </div>
+		 <div class="activity-block-content">
+			 <div class="form-grid" style="border-bottom: 1px dashed #ddd; padding-bottom: 20px;">
+				 <div class="form-field">
+					 <label>Pavelló afectat</label>
+					 <select class="pool-select" name="recurrent_blocks[<?php echo esc_attr($index); ?>][piscina_slug]" required>
+						 <option value="" data-lanes="0">-- Tria un pavelló --</option>
+						 <?php foreach ( $all_pools as $slug => $pool_data ) : ?>
+							 <option value="<?php echo esc_attr( $slug ); ?>" data-lanes="<?php echo esc_attr($pool_data['lanes']); ?>" <?php selected( $piscina_slug, $slug ); ?>><?php echo esc_html( $pool_data['label'] ); ?></option>
+						 <?php endforeach; ?>
+					 </select>
+				 </div>
+				 <div class="form-field">
+					 <label>Activitat</label>
+					 <!-- Canviem el nom del camp a 'activity_description' -->
+					 <select class="activity-letter-select" name="recurrent_blocks[<?php echo esc_attr($index); ?>][activity_description]" required>
+						 <option value="">-- Tria una activitat --</option>
+						 <optgroup label="Estats Bàsics">
+							 <!-- El 'value' ara és la descripció, no la lletra -->
+							 <option value="l" data-title="Lliure" <?php selected( $activity_description, 'l' ); ?>>Lliure</option>
+							 <option value="b" data-title="Tancat" <?php selected( $activity_description, 'b' ); ?>>Tancat</option>
+						 </optgroup>
+						 <?php if (!empty($custom_letters)): ?>
+						 <optgroup label="Activitats Personalitzades">
+							 <?php foreach ( $custom_letters as $activity_info ) : ?>
+								  <?php if(empty($activity_info['description'])) continue; ?>
+								  <option value="<?php echo esc_attr( $activity_info['description'] ); ?>" data-title="<?php echo esc_attr($activity_info['description']); ?>" <?php selected( $activity_description, $activity_info['description'] ); ?>>
+									 <?php echo esc_html( $activity_info['description'] ); ?>
+								  </option>
+							 <?php endforeach; ?>
+						 </optgroup>
+						 <?php endif; ?>
+					 </select>
+				 </div>
+				 <div class="form-field subitem-selector-container hidden">
+					 <label>Sub-ítem (opcional)</label>
+					 <select class="subitem-selector" name="recurrent_blocks[<?php echo esc_attr($index); ?>][activity_subitem]" data-saved-value="<?php echo esc_attr($activity_subitem); ?>">
+						 <?php /* El contingut es genera dinàmicament amb JS */ ?>
+					 </select>
+				 </div>
+			 </div>
+			 <div class="time-lanes-section">
+				 <label class="section-title">1. Defineix Franges Horàries i Carrils</label>
+				 <div class="time-lanes-container repeater-container">
+					 <?php if (!empty($time_lane_rules)) : foreach ($time_lane_rules as $rule_index => $rule) : ?>
+						 <div class="repeater-row time-lane-rule-row">
+							 <div class="form-field"><label>De:</label>
+								 <select name="recurrent_blocks[<?php echo esc_attr($index); ?>][time_lane_rules][<?php echo esc_attr($rule_index); ?>][start]">
+									 <?php foreach ($time_slots as $time): ?><option value="<?php echo $time; ?>" <?php selected($rule['start'] ?? '09:00', $time); ?>><?php echo $time; ?></option><?php endforeach; ?>
+								 </select>
+							 </div>
+							 <div class="form-field"><label>A:</label>
+								 <select name="recurrent_blocks[<?php echo esc_attr($index); ?>][time_lane_rules][<?php echo esc_attr($rule_index); ?>][end]">
+									 <?php foreach ($time_slots as $time): ?><option value="<?php echo $time; ?>" <?php selected($rule['end'] ?? '10:00', $time); ?>><?php echo $time; ?></option><?php endforeach; ?>
+								 </select>
+							 </div>
+							 <div class="lanes-selector-wrapper form-field">
+								 <label>Carrils:</label>
+								 <div class="lanes-selector">
+									 <?php
+									 $num_lanes_actual = ($piscina_slug && isset($all_pools[$piscina_slug])) ? $all_pools[$piscina_slug]['lanes'] : 0;
+									 $saved_lanes_arr = array_map('intval', explode(',', $rule['lanes'] ?? ''));
+									 if ($num_lanes_actual > 0) { for ($i = 1; $i <= $num_lanes_actual; $i++) { $is_selected = in_array($i, $saved_lanes_arr, true); echo '<div class="lane-box ' . ($is_selected ? 'selected' : '') . '" data-lane="' . $i . '">' . $i . '</div>'; } }
+									 ?>
+								 </div>
+								 <input type="hidden" class="hidden-lanes-input" name="recurrent_blocks[<?php echo esc_attr($index); ?>][time_lane_rules][<?php echo esc_attr($rule_index); ?>][lanes]" value="<?php echo esc_attr($rule['lanes'] ?? ''); ?>">
+							 </div>
+							 <div class="action-cell"><button type="button" class="button-icon remove-time-lane-btn" title="Elimina franja"><span class="dashicons dashicons-trash"></span></button></div>
+						 </div>
+					 <?php endforeach; endif; ?>
+				 </div>
+				 <button type="button" class="button button-secondary add-time-lane-btn" style="margin-top: 10px;"><span class="dashicons dashicons-plus-alt2"></span> Afegeix Franja Horària</button>
+			 </div>
+			 <div class="date-ranges-section">
+				 <label class="section-title">2. Defineix Períodes d'Aplicació</label>
+				 <div class="date-ranges-container repeater-container">
+					 <?php if ( ! empty( $date_ranges ) ) : foreach ( $date_ranges as $range_index => $range ) : ?>
+						 <div class="repeater-row range-row">
+							 <div class="form-field"><label>Data Inici</label><input type="date" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][start]" value="<?php echo esc_attr( $range['start'] ); ?>"></div>
+							 <div class="form-field"><label>Data Fi</label><input type="date" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][end]" value="<?php echo esc_attr( $range['end'] ); ?>"></div>
+							 <div class="days-of-week form-field">
+								 <label>Dies de la setmana:</label>
+								 <div>
+									 <label><input type="checkbox" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][days][]" value="1" <?php checked( in_array( 1, $range['days'] ?? [] ) ); ?>> Dl</label>
+									 <label><input type="checkbox" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][days][]" value="2" <?php checked( in_array( 2, $range['days'] ?? [] ) ); ?>> Dt</label>
+									 <label><input type="checkbox" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][days][]" value="3" <?php checked( in_array( 3, $range['days'] ?? [] ) ); ?>> Dc</label>
+									 <label><input type="checkbox" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][days][]" value="4" <?php checked( in_array( 4, $range['days'] ?? [] ) ); ?>> Dj</label>
+									 <label><input type="checkbox" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][days][]" value="5" <?php checked( in_array( 5, $range['days'] ?? [] ) ); ?>> Dv</label>
+									 <label><input type="checkbox" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][days][]" value="6" <?php checked( in_array( 6, $range['days'] ?? [] ) ); ?>> Ds</label>
+									 <label><input type="checkbox" name="recurrent_blocks[<?php echo esc_attr($index); ?>][date_ranges][<?php echo esc_attr($range_index); ?>][days][]" value="7" <?php checked( in_array( 7, $range['days'] ?? [] ) ); ?>> Dg</label>
+								 </div>
+							 </div>
+							 <div class="action-cell"><button type="button" class="button-icon remove-range-btn" title="Elimina període"><span class="dashicons dashicons-trash"></span></button></div>
+						 </div>
+					 <?php endforeach; endif; ?>
+				 </div>
+				 <button type="button" class="button button-secondary add-range-btn" style="margin-top: 10px;"><span class="dashicons dashicons-plus-alt2"></span> Afegeix Període</button>
+			 </div>
+		 </div>
+	 </div>
+	 <?php
+ }
+ 
+/**
+ * Retorna un array amb les franges horàries configurades (cada 30 minuts).
+ *
+ * @return array Array de strings 'H:i'.
+ */
+function sportic_get_configured_time_slots() {
+	  $config_hores = get_option('sportic_unfile_opening_hours', array('start'=>'16:00', 'end'=>'23:00'));
+	  $start_time_str = $config_hores['start'] ?? '16:00';
+	  $end_time_str   = $config_hores['end'] ?? '23:00';
+  
+	  $time_slots = [];
+	  try {
+		  $current_dt = new DateTime($start_time_str);
+		  $end_dt     = new DateTime($end_time_str);
+  
+		  if ($current_dt > $end_dt) {
+			  $current_dt = new DateTime('16:00');
+			  $end_dt     = new DateTime('23:00');
+		  }
+  
+		  while ($current_dt <= $end_dt) {
+			  $time_slots[] = $current_dt->format('H:i');
+			  $current_dt->modify('+15 minutes'); // <-- CANVI A 15 MINUTS
+		  }
+	  } catch (Exception $e) {
+		  $current_dt = new DateTime('16:00');
+		  $end_dt     = new DateTime('23:00');
+		  while ($current_dt <= $end_dt) {
+			  $time_slots[] = $current_dt->format('H:i');
+			  $current_dt->modify('+15 minutes'); // <-- CANVI A 15 MINUTS
+		  }
+	  }
+	  return $time_slots;
+  }
+  /**
+ * ============================================================================
+ * NOU: Elimina tots els anuncis i notificacions de les pàgines del CPT
+ * 'Esdeveniments Recurrents' per mantenir la interfície neta.
+ * ============================================================================
+ */
+function sportic_disable_admin_notices_for_recurrent_cpt() {
+	
+	// Obtenim la informació de la pantalla actual de l'administració.
+	$screen = get_current_screen();
 
-
+	// Comprovem si l'objecte 'screen' existeix i si el seu 'post_type'
+	// és exactament el dels nostres esdeveniments recurrents.
+	// Això s'aplicarà tant a la llista d'esdeveniments com a la pàgina d'edició d'un de sol.
+	if ( $screen && isset($screen->post_type) && $screen->post_type === 'sportic_recurrent' ) {
+		
+		// Si estem en una pàgina del CPT, eliminem tots els filtres
+		// que WordPress i altres plugins utilitzen per mostrar notificacions.
+		remove_all_filters( 'admin_notices' );
+		remove_all_filters( 'all_admin_notices' );
+		remove_all_filters( 'user_admin_notices' );
+		remove_all_filters( 'network_admin_notices' );
+	}
+}
+// Enganxem la nostra funció al 'hook' 'admin_head' amb prioritat 1 (molt aviat)
+// per assegurar que s'executa abans que es mostri cap notificació.
+add_action( 'admin_head', 'sportic_disable_admin_notices_for_recurrent_cpt', 1 );
 
 /**
  * ========================================================================
@@ -10760,131 +12335,125 @@ add_action('wp_ajax_sportic_get_template_for_dina3_pdf_v7', 'sportic_ajax_get_te
  * Aquesta funció NOMÉS serà cridada per la generació del PDF de plantilles,
  * garantint que no afecta cap altra part del web.
  */
-if ( ! function_exists('_sportic_day_html_dina3_for_pdf') ) {
-	 function _sportic_day_html_dina3_for_pdf($dia, $dades, $pisc, $leg, $pools_to_render_slugs = null, $show_day_title = true) {
-		 
-		 if ($pools_to_render_slugs === null) {
-			 $pools_to_render_slugs = ['p12_20','p6','p4','infantil'];
-		 }
- 
-		 $dies  = ['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
- 
-		 try { $o = new DateTime($dia); $nice = $o->format('d-m-Y'); $nom = $dies[(int)$o->format('w')]; }
-		 catch (Exception $e) { $nice = 'Data invàlida'; $nom = ''; }
-		 
-		 if (!function_exists('_sportic_pdf_contrast_helper')) {
-			 function _sportic_pdf_contrast_helper($hexcolor){
-				 $r = hexdec(substr($hexcolor, 1, 2));
-				 $g = hexdec(substr($hexcolor, 3, 2));
-				 $b = hexdec(substr($hexcolor, 5, 2));
-				 $luminance = (0.299 * $r + 0.587 * $g + 0.114 * $b) / 255;
-				 return $luminance > 0.5 ? '#000000' : '#ffffff';
-			 }
-		 }
- 
-		 ob_start(); ?>
-		 <div class="sw_day" data-day="<?php echo esc_attr($dia); ?>">
- 
-		   <?php // <-- INICI DEL CANVI: Només mostrem el títol si $show_day_title és true -->
-		   if ($show_day_title): ?>
-		   <h3 style="margin-bottom:28px !important; font-size:7rem !important; font-weight:bold !important; text-align:center !important; border-bottom:2px solid #eee !important;">
-			 <?php echo esc_html(($nom ? $nom.', ' : '').$nice); ?>
-		   </h3>
-		   <?php endif; 
-		   // <-- FI DEL CANVI --> ?>
- 
-		   <div style="display:flex !important; gap:38px !important; flex-wrap:nowrap !important; justify-content:flex-start !important;">
-			 <?php foreach ($pools_to_render_slugs as $s):
-			   if ( ! isset($pisc[$s]) ) continue;
-			   $lab = $pisc[$s]['label'] ?? ucfirst($s);
-			   $pr  = (isset($dades[$s][$dia]) && is_array($dades[$s][$dia]))
-						 ? $dades[$s][$dia] : sportic_unfile_crear_programacio_default($s);
-			   if ( ! $pr ) continue;
-			   $hores = array_keys($pr); sort($hores);
-			   
-			   $cols = 0;
-			   if (!empty($hores)) {
-				 $first_hour_data = $pr[$hores[0]] ?? [];
-				 if (is_array($first_hour_data)) {
-					 $cols = count($first_hour_data);
-				 }
-			   }
-			   if ($cols === 0) continue;
- 
-			   $w = _sportic_calcular_width_px_for_pdf($cols); ?>
-			   <div style="display:inline-block !important; padding:12px 0 !important;">
-				 <h4 style="margin:0 0 20px !important; text-align:center !important; font-size:1.8rem !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important;">
-					 <?php echo esc_html($lab); ?>
-				 </h4>
-				 <div style="display:inline-block !important;">
-				   <div style="min-width:<?php echo $w; ?>px !important;">
-					 <table style="border-collapse:collapse !important; margin:0 auto !important; table-layout:fixed !important;">
-					   <thead>
-						 <tr style="background:#d8d8d8 !important; font-size: 2.0rem !important;">
-						   <th style="border:2px solid #555 !important; padding:10px !important; width:110px !important;">Hora</th>
-						   <?php for ($c=1;$c<=$cols;$c++): ?>
-							 <th style="border:2px solid #555 !important; padding:10px !important; width:70px !important;"><?php echo $c; ?></th>
-						   <?php endfor; ?>
-						 </tr>
-					   </thead>
-					   <tbody>
-						 <?php foreach ($hores as $h):
-						   if ( ! sportic_unfile_is_time_in_open_range($h) ) continue;
-						   echo '<tr>';
-						   echo '<td class="sportic-hour-cell" style="border:2px solid #555 !important; padding:10px !important; text-align:center !important; width:110px !important; font-size: 1.8rem !important;">'.esc_html($h).'</td>';
-						   
-						   $carrils_del_dia = $pr[$h] ?? array_fill(0, $cols, 'l');
-						   if (count($carrils_del_dia) < $cols) { $carrils_del_dia = array_pad($carrils_del_dia, $cols, 'l'); }
-						   elseif (count($carrils_del_dia) > $cols) { $carrils_del_dia = array_slice($carrils_del_dia, 0, $cols); }
- 
-						   foreach ($carrils_del_dia as $v) {
-							   $isRecurrent = false;
-							   $valorBase = $v;
-							   if (is_string($v) && strpos($v, '@') === 0) {
-								   $isRecurrent = true;
-								   $valorBase = substr($v, 1);
-							   } elseif (is_string($v) && strpos($v, '!') === 0) {
-								   $valorBase = substr($v, 1);
-							   }
-							   
-							   $raw = strtolower(trim($valorBase));
-							   $let = strpos($raw,':') !== false ? trim(explode(':',$raw)[0]) : $raw;
-							   $bg  = $leg[$let]['color'] ?? $leg['l']['color'];
-							   $tit = $leg[$let]['title'] ?? $leg['l']['title'];
-							   
-							   $text_color = _sportic_pdf_contrast_helper($bg);
- 
-							   $txt = '';
-							   if (!in_array($let, ['l', 'b'])) {
-								   $original_value = trim($valorBase);
-								   if (strpos($original_value, ':') !== false) {
-									   list($code_part, $desc_part) = explode(':', $original_value, 2);
-									   $txt = strtoupper(trim($code_part)) . ':' . trim($desc_part);
-								   } else {
-									   $txt = strtoupper($original_value);
-								   }
-							   }
-							   
-							   echo '<td title="'.esc_attr($tit).'" style="border:2px solid #555 !important; padding:10px !important; text-align:center !important; background-color:'.$bg.' !important; color:'.$text_color.' !important; width:70px !important; position:relative !important; font-size: 1.6rem !important; font-weight: bold !important;">'.esc_html($txt).'';
- 
-							   if ($isRecurrent) {
-								   echo '<i class="fas fa-sync-alt" style="position:absolute;bottom:2px;left:2px;font-size:12px;color:rgba(0,0,0,0.4);"></i>';
-							   }
-							   echo '</td>';
-						   }
-						   echo '</tr>';
-						 endforeach; ?>
-					   </tbody>
-					 </table>
-				   </div>
-				 </div>
-			   </div>
-			 <?php endforeach; ?>
-		   </div>
-		 </div><?php
-		 return ob_get_clean();
-	 }
- }
+if ( ! function_exists('_sportic_day_html_dina3') ) {
+function _sportic_day_html_dina3($dia, $dades, $pisc, $leg, $pools_to_render_slugs = null) {
+		if ($pools_to_render_slugs === null) {
+			$pools_to_render_slugs = array_keys($pisc);
+		}
+
+		$dies  = ['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
+
+		try { $o = new DateTime($dia); $nice = $o->format('d-m-Y'); $nom = $dies[(int)$o->format('w')]; }
+		catch (Exception $e) { $nice = 'Data invàlida'; $nom = ''; }
+
+		ob_start(); ?>
+		<div class="sw_day" data-day="<?php echo esc_attr($dia); ?>">
+		  <h3 style="margin-bottom:28px;font-size:6rem;font-weight:bold;text-align:center;border-bottom:2px solid #eee;">
+			<?php echo esc_html(($nom ? $nom.', ' : '').$nice); ?>
+		  </h3>
+		  <div style="display:flex;gap:38px;flex-wrap:nowrap;justify-content:flex-start;">
+			<?php foreach ($pools_to_render_slugs as $s):
+			  if ( ! isset($pisc[$s]) ) continue;
+			  $lab = $pisc[$s]['label'] ?? ucfirst($s);
+			  $pr  = (isset($dades[$s][$dia]) && is_array($dades[$s][$dia]))
+						? $dades[$s][$dia] : sportic_unfile_crear_programacio_default($s);
+			  if ( ! $pr ) continue;
+			  
+			  $hores = array_keys($pr); sort($hores);
+			  $hores_filtrades = array_values(array_filter($hores, 'sportic_unfile_is_time_in_open_range'));
+			  if (empty($hores_filtrades)) continue;
+			  
+			  $cols = isset($pisc[$s]['lanes']) ? intval($pisc[$s]['lanes']) : 0;
+			  if ($cols === 0) continue;
+
+			  $lane_labels = $pisc[$s]['lane_labels'] ?? [];
+			  if (empty($lane_labels)) { for ($i = 1; $i <= $cols; $i++) { $lane_labels[] = 'Pista ' . $i; } }
+
+			  $w = _sportic_calcular_width_px($cols); 
+			  
+			  $preprocessed = _sportic_preprocess_data_for_merging($pr, $hores_filtrades, $cols);
+			  $data_amb_spans = $preprocessed['data'];
+			  ?>
+			  <div style="display:inline-block;padding:12px 0;">
+				<h4 style="margin:0 0 20px;text-align:center;font-size:1.4rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?php echo esc_html($lab); ?></h4>
+				<div style="display:inline-block;">
+				  <div style="min-width:<?php echo $w; ?>px;">
+					<table style="border-collapse:collapse;margin:0 auto;font-size:2.0rem;table-layout:fixed;">
+					  <thead>
+						<tr style="background:#d8d8d8;">
+						  <th style="border:2px solid #555;padding:10px;width:110px;">Hora</th>
+						  <?php foreach ($lane_labels as $lane_label): ?>
+							<th style="border:2px solid #555;padding:10px;width:120px;"><?php echo esc_html($lane_label); ?></th>
+						  <?php endforeach; ?>
+						</tr>
+					  </thead>
+					  <tbody>
+						<?php foreach ($hores_filtrades as $r_idx => $h):
+						  echo '<tr><td class="sportic-hour-cell" style="border:2px solid #555;padding:10px;text-align:center;width:110px;"><span class="sportic-text">'.esc_html($h).'</span></td>';
+						  
+						  for ($c_idx = 0; $c_idx < $cols; $c_idx++) {
+							if (!isset($data_amb_spans[$r_idx][$c_idx]['rowspan'])) continue;
+
+							$cell_info = $data_amb_spans[$r_idx][$c_idx];
+							$v = $cell_info['value'];
+							$rowspan = $cell_info['rowspan'];
+							$colspan = $cell_info['colspan'];
+
+							$isRecurrent = false; $valorBase = $v;
+							if (is_string($v) && strpos($v, '@') === 0) { $isRecurrent = true; $valorBase = substr($v, 1); } 
+							elseif (is_string($v) && strpos($v, '!') === 0) { $valorBase = substr($v, 1); }
+
+							$valorBase = trim($valorBase);
+							$bg = '#ffffff';
+							$tit = '';
+							$txt = '';
+							$textColor = '#000000';
+
+							if (strpos($valorBase, 'MIX:') === 0) {
+								$teams_in_mix = explode('|', substr($valorBase, 4));
+								$colors_to_blend = [];
+								foreach ($teams_in_mix as $team_name) {
+									$trimmed_name = trim($team_name);
+									if (isset($leg[$trimmed_name])) {
+										$colors_to_blend[] = $leg[$trimmed_name]['color'];
+									}
+								}
+								$bg = sportic_blend_hex_colors($colors_to_blend);
+								$tit = 'Sessió Mixta: ' . implode(' + ', array_map('trim', $teams_in_mix));
+								$txt = $valorBase;
+							} else {
+								$bg  = $leg[$valorBase]['color'] ?? $leg['l']['color'];
+								$tit = $leg[$valorBase]['title'] ?? '';
+								$txt = ($valorBase === 'l' || $valorBase === 'b') ? '' : $valorBase;
+							}
+							
+							$textColor = function_exists('_sportic_contrast_color_helper') ? _sportic_contrast_color_helper($bg) : '#000000';
+							$style = 'border:2px solid #555;padding:10px;text-align:center;background-color:'.$bg.';color:'.$textColor.';width:120px;position:relative; vertical-align:middle;';
+							
+							$data_attrs = '';
+							if ($txt !== '') {
+								$team_key = function_exists('_sportic_normalize_key') ? _sportic_normalize_key($txt) : strtolower($txt);
+								$data_attrs .= ' data-team-name="' . esc_attr($txt) . '"';
+								$data_attrs .= ' data-team-key="' . esc_attr($team_key) . '"';
+							}
+							$data_attrs .= ' data-original-bg="' . esc_attr($bg) . '"';
+							$data_attrs .= ' data-original-color="' . esc_attr($textColor) . '"';
+
+							echo '<td class="sportic-cell" rowspan="'.$rowspan.'" colspan="'.$colspan.'" title="'.esc_attr($tit).'" style="'.$style.'"'.$data_attrs.'><span class="sportic-text-scalable">'.esc_html($txt).'</span></td>';
+						  }
+						  echo '</tr>';
+						endforeach; ?>
+					  </tbody>
+					</table>
+				  </div>
+				</div>
+			  </div>
+			<?php endforeach; ?>
+		  </div>
+		</div><?php
+		return ob_get_clean();
+	}
+}
  
  /**
   * ========================================================================
@@ -11089,8 +12658,12 @@ function sportic_get_week_html_callback() {
 	$schedule_map = sportic_carregar_finestra_bd($week_start_str, 6, 0);
 	$sessions_by_day = sportic_find_and_build_sessions($schedule_map, $piscines, $team_name, $week_start_str, 7);
 
-	$shortcode_options = get_option('sporttic_shortcode_options', ['hide_empty_days' => '0']);
-	$hide_empty_days = isset($shortcode_options['hide_empty_days']) && $shortcode_options['hide_empty_days'] === '1';
+	$shortcode_options_defaults = ['hide_empty_days' => '0', 'compact_view' => '0'];
+	$shortcode_options = get_option('sporttic_shortcode_options', []);
+	$shortcode_options = wp_parse_args($shortcode_options, $shortcode_options_defaults);
+	
+	$hide_empty_days = ($shortcode_options['hide_empty_days'] === '1');
+	$is_compact_view = ($shortcode_options['compact_view'] === '1');
 
 	$days_to_display = $sessions_by_day;
 	if ($hide_empty_days) {
@@ -11133,9 +12706,35 @@ function sportic_get_week_html_callback() {
 								<div class="sportic-session-header-info">
 									<span class="pavilion"><?php echo esc_html($session['pavilion_label']); ?></span>
 									<span class="time"><?php echo esc_html($session['overall_start'] . ' - ' . $session['overall_end']); ?></span>
+									<?php
+									if ($is_compact_view && !empty($session['lanes_used_labels']) && is_array($session['lanes_used_labels'])): ?>
+										<div class="lanes-info">
+											<strong>Pistes: </strong><?php
+											$lane_items = [];
+											foreach ($session['lanes_used_labels'] as $lane_label) {
+												$lane_items[] = '<span class="lane-item">' . esc_html($lane_label) . '</span>';
+											}
+											echo implode(', ', $lane_items);
+											?>
+										</div>
+									<?php endif; ?>
 								</div>
 								<span class="sportic-session-duration"><?php echo esc_html(sportic_format_duration_label($session['duration_minutes'])); ?></span>
 							</div>
+
+							<?php 
+							if (!empty($session['mixed_info']) && !empty($session['mixed_info']['with'])): 
+								$other_teams_str = implode(', ', array_map('esc_html', $session['mixed_info']['with']));
+							?>
+								<div class="sportic-session-mixed-notice">
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+									<span>Entrenament Mixt amb: <strong><?php echo $other_teams_str; ?></strong></span>
+								</div>
+							<?php 
+							endif;
+							?>
+							
+							<?php if (!$is_compact_view): ?>
 							<div class="sportic-session-grid-wrapper">
 								<table class="sportic-session-table">
 									<thead>
@@ -11160,6 +12759,7 @@ function sportic_get_week_html_callback() {
 									</tbody>
 								</table>
 							</div>
+							<?php endif; ?>
 						</div>
 					<?php endforeach; else: ?>
 						<div class="no-session">Sense entrenaments programats</div>
@@ -11169,9 +12769,6 @@ function sportic_get_week_html_callback() {
 		<?php endforeach;
 	endif;
 
-	// ========================================================================
-	// INICI DEL CANVI: Lògica per afegir els elements fantasma (versió AJAX)
-	// ========================================================================
 	if ($hide_empty_days) {
 		$visible_days_count = count($days_to_display);
 		$grid_columns = 3;
@@ -11181,9 +12778,6 @@ function sportic_get_week_html_callback() {
 			echo '<div class="sportic-day-card-placeholder"></div>';
 		}
 	}
-	// ========================================================================
-	// FI DEL CANVI
-	// ========================================================================
 	
 	$grid_html = ob_get_clean();
 
@@ -11360,144 +12954,164 @@ if (!function_exists('sportic_upcoming_events_handler')) {
 }
 
 
-/**
- * ========================================================================
- * NOU ENDPOINT API V2: SUPER-OPTIMITZAT I FLEXIBLE
- * Afegeix aquest bloc complet al teu plugin principal 'SportTic'.
- * ========================================================================
- */
-
-// Registrem la nostra nova ruta a la API REST de WordPress.
-add_action('rest_api_init', 'sportic_register_schedule_api_routes');
-
-/**
- * Registra la ruta 'sportic/v2/schedule' per a consultes de programació.
- * Aquesta funció s'executa quan WordPress inicialitza la API REST.
- */
-function sportic_register_schedule_api_routes() {
-	register_rest_route('sportic/v2', '/schedule', [
-		'methods'  => 'GET',
-		'callback' => 'sportic_get_schedule_api_callback',
-		'args'     => [
-			'lloc' => [
-				'description'       => 'El slug del lloc del qual es volen obtenir les dades.',
-				'type'              => 'string',
-				'required'          => true,
-				'sanitize_callback' => 'sanitize_key',
-			],
-			'pavellons' => [
-				'description'       => '(Opcional) Llista de slugs de pavellons separats per coma. Si no es proveeix, es retornen tots els pavellons del lloc.',
-				'type'              => 'string',
-				'required'          => false,
-				'sanitize_callback' => 'sanitize_text_field',
-			],
-			'start_date' => [
-				'description'       => 'Data d\'inici del rang en format YYYY-MM-DD.',
-				'type'              => 'string',
-				'required'          => true,
-				'validate_callback' => function($param) {
-					return (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $param);
-				}
-			],
-			'end_date' => [
-				'description'       => '(Opcional) Data de fi del rang en format YYYY-MM-DD. Si no es proveeix, s\'utilitza la mateixa que start_date (consulta d\'un sol dia).',
-				'type'              => 'string',
-				'required'          => false,
-				'validate_callback' => function($param) {
-					return (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $param);
-				}
-			],
-		],
-		// NOTA DE SEGURETAT: Per a un entorn de producció públic, hauries d'implementar una validació més robusta,
-		// com una API Key o una comprovació d'origen (CORS). De moment, permet l'accés a tothom.
-		'permission_callback' => '__return_true',
-	]);
+if ( ! function_exists('sportic_team_matches_cell_value') ) {
+	/**
+	 * [NOVA FUNCIÓ AUXILIAR] Comprova si un equip coincideix amb el valor d'una cel·la,
+	 * gestionant tant valors normals com els nous valors mixts (MIX:EquipA|EquipB).
+	 *
+	 * @param string $cell_value Valor net de la cel·la.
+	 * @param string $team_name_norm Nom normalitzat (minúscules) de l'equip que es busca.
+	 * @return bool True si hi ha coincidència, false si no.
+	 */
+	function sportic_team_matches_cell_value($cell_value, $team_name_norm) {
+		if (strpos($cell_value, 'MIX:') === 0) {
+			// És un valor mixt, comprovem si el nostre equip hi és a dins
+			$teams_string = substr($cell_value, 4);
+			$teams_in_cell = explode('|', $teams_string);
+			$normalized_teams = array_map('trim', array_map('mb_strtolower', $teams_in_cell));
+			return in_array($team_name_norm, $normalized_teams, true);
+		} else {
+			// És un valor normal, fem la comprovació simple
+			$primary_token = mb_strtolower(sportic_extract_primary_token($cell_value));
+			return $primary_token === $team_name_norm;
+		}
+	}
 }
 
-/**
- * Funció callback que gestiona la petició a la API REST 'sportic/v2/schedule'.
- *
- * @param WP_REST_Request $request Objecte de la petició REST.
- * @return WP_REST_Response|WP_Error Resposta amb les dades o un error.
- */
-function sportic_get_schedule_api_callback($request) {
-	// 1. Validar que les funcions de dependència existeixen.
-	if (!function_exists('sportllocs_get_pavellons_by_lloc') || !function_exists('sportic_carregar_finestra_bd')) {
-		return new WP_Error('plugin_dependency_error', 'Les funcions necessàries dels plugins de configuració o SportTic no estan disponibles.', ['status' => 500]);
-	}
 
-	// 2. Obtenir i validar paràmetres.
-	$lloc_slug = $request['lloc'];
-	$pavellons_param = $request['pavellons'];
-	$start_date = $request['start_date'];
-	$end_date = $request['end_date'] ?? $start_date; // Si no hi ha data final, és un sol dia.
-
-	// Comprovem que les dates són lògiques.
-	if (strtotime($end_date) < strtotime($start_date)) {
-		return new WP_Error('invalid_date_range', 'La data de fi no pot ser anterior a la data d\'inici.', ['status' => 400]);
-	}
-	
-	// 3. Obtenir la llista de pavellons vàlids per al lloc sol·licitat.
-	$all_pavellons_in_lloc = sportllocs_get_pavellons_by_lloc($lloc_slug);
-	if (empty($all_pavellons_in_lloc)) {
-		return new WP_Error('no_pavilions_found', "El lloc '{$lloc_slug}' no existeix o no té pavellons associats.", ['status' => 404]);
-	}
-
-	$pavellons_a_consultar = [];
-	if (!empty($pavellons_param)) {
-		// L'usuari ha demanat pavellons específics. Els filtrem.
-		$slugs_demanats = array_map('trim', explode(',', $pavellons_param));
-		foreach ($slugs_demanats as $slug) {
-			if (isset($all_pavellons_in_lloc[sanitize_key($slug)])) {
-				$pavellons_a_consultar[sanitize_key($slug)] = $all_pavellons_in_lloc[sanitize_key($slug)];
-			}
+if ( ! function_exists('sportic_blend_hex_colors') ) {
+	/**
+	 * Barreja un array de colors hexadecimals per obtenir un únic color mitjà.
+	 *
+	 * @param array $colors Array de strings de colors en format hex (ex: ['#ff0000', '#0000ff']).
+	 * @return string El color resultant en format hex.
+	 */
+	function sportic_blend_hex_colors($colors) {
+		$total_colors = count($colors);
+		if ($total_colors === 0) {
+			return '#cccccc'; // Un color neutre si no n'hi ha cap
 		}
-	} else {
-		// L'usuari no ha especificat pavellons, per tant els volem tots per a aquest lloc.
-		$pavellons_a_consultar = $all_pavellons_in_lloc;
-	}
-
-	if (empty($pavellons_a_consultar)) {
-		return new WP_Error('no_matching_pavilions', 'Cap dels pavellons sol·licitats pertany al lloc especificat.', ['status' => 404]);
-	}
-
-	// 4. Càrrega optimitzada de dades utilitzant la funció existent.
-	$diff_dies = (new DateTime($start_date))->diff(new DateTime($end_date))->days;
-	$schedule_window = sportic_carregar_finestra_bd($start_date, $diff_dies, 0);
-
-	// 5. Construir la resposta final, filtrant només les dades que ens interessen.
-	$response_data = [];
-	foreach ($pavellons_a_consultar as $pav_slug => $pav_info) {
-		$dates_per_pavello = [];
-		$current_date = new DateTime($start_date);
-		$end_date_obj = new DateTime($end_date);
-
-		while ($current_date <= $end_date_obj) {
-			$date_str = $current_date->format('Y-m-d');
-			
-			// Obtenim les dades del dia, ja processades (amb recurrents i excepcions)
-			$day_schedule_raw = $schedule_window[$pav_slug][$date_str] ?? sportic_unfile_crear_programacio_default($pav_slug);
-			
-			// Netegem els prefixos '!' i '@' per al frontend
-			$day_schedule_clean = [];
-			foreach ($day_schedule_raw as $hora => $carrils) {
-				$day_schedule_clean[$hora] = array_map(function($valor) {
-					return is_string($valor) ? preg_replace('/^[@!]/', '', $valor) : 'l';
-				}, $carrils);
-			}
-			
-			$dates_per_pavello[$date_str] = $day_schedule_clean;
-			$current_date->modify('+1 day');
+		if ($total_colors === 1) {
+			return $colors[0]; // Si només n'hi ha un, el retornem
 		}
 
-		$response_data[] = [
-			'slug' => $pav_slug,
-			'nom' => $pav_info['label'],
-			'pistes' => $pav_info['lanes'],
-			'noms_pistes' => $pav_info['lane_labels'],
-			'horaris' => $dates_per_pavello
-		];
-	}
+		$total_r = 0;
+		$total_g = 0;
+		$total_b = 0;
 
-	return new WP_REST_Response($response_data, 200);
+		foreach ($colors as $hex) {
+			$rgb = sportic_hex_to_rgb($hex);
+			if ($rgb) {
+				$total_r += $rgb[0];
+				$total_g += $rgb[1];
+				$total_b += $rgb[2];
+			} else {
+				// Si un color no és vàlid, el comptem però no suma valors,
+				// la qual cosa diluirà una mica el resultat final cap al negre.
+				// Podríem ignorar-lo completament si preferim.
+			}
+		}
+
+		$avg_r = (int)round($total_r / $total_colors);
+		$avg_g = (int)round($total_g / $total_colors);
+		$avg_b = (int)round($total_b / $total_colors);
+
+		return sportic_rgb_to_hex($avg_r, $avg_g, $avg_b);
+	}
 }
+
+/******************************************************************
+ * NOVA FUNCIÓ DE RASTREIG DE VISITES (Versió Ampliada)
+ * Aquesta funció s'encarrega de registrar informació detallada
+ * de cada visita a un shortcode d'equip.
+ ******************************************************************/
+if ( ! function_exists('sportic_track_shortcode_visit') ) {
+	 function sportic_track_shortcode_visit($atts) {
+		 // Només s'executa a la part pública, mai a l'admin ni en peticions AJAX
+		 if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) {
+			 return;
+		 }
+ 
+		 // 1. Obtenir el codi de l'equip del shortcode
+		 $atts_tracker = shortcode_atts(['code' => ''], $atts, 'sportic_team_schedule');
+		 $code_tracker = sanitize_title($atts_tracker['code']);
+ 
+		 if ($code_tracker === '') {
+			 return; // No fem res si el shortcode no té un codi vàlid
+		 }
+ 
+		 // *** INICI DEL CANVI: LÒGICA PER INSERIR A LA NOVA TAULA ***
+ 
+		 global $wpdb;
+		 $nomTaulaVisites = $wpdb->prefix . 'sportic_visits_log';
+ 
+		 // 2. Determinar la font de la visita (Referrer)
+		 $referrer_type = 'direct';
+		 if (!empty($_SERVER['HTTP_REFERER'])) {
+			 // Comprovem si el referrer pertany al mateix lloc web
+			 if (strpos($_SERVER['HTTP_REFERER'], home_url()) === 0) {
+				 $referrer_type = 'internal';
+			 } else {
+				 $referrer_type = 'external';
+			 }
+		 }
+ 
+		 // 3. Inserir la nova visita com una fila a la base de dades
+		 $wpdb->insert(
+			 $nomTaulaVisites,
+			 [
+				 'team_code'       => $code_tracker,
+				 'visit_timestamp' => current_time('mysql', 1), // Temps en format UTC per a consistència
+				 'device'          => wp_is_mobile() ? 'mobile' : 'desktop',
+				 'referrer_type'   => $referrer_type,
+			 ],
+			 [
+				 '%s', // format per a team_code
+				 '%s', // format per a visit_timestamp
+				 '%s', // format per a device
+				 '%s', // format per a referrer_type
+			 ]
+		 );
+		 
+		 // *** FI DEL CANVI ***
+		 // La lògica anterior de get_option, neteja de l'array i update_option s'ha eliminat completament.
+	 }
+ }
+ 
+ 
+ /**
+  * ============================================================================
+  * TASCA PROGRAMADA (CRON) PER A LA NETEJA DEL REGISTRE DE VISITES
+  * ============================================================================
+  */
+ 
+ // 1. Funció que programa la tasca quan el plugin s'activa
+ register_activation_hook(__FILE__, 'sportic_analytics_schedule_cleanup');
+ function sportic_analytics_schedule_cleanup() {
+	 // Comprovem si la tasca ja està programada per no duplicar-la
+	 if (!wp_next_scheduled('sportic_analytics_daily_cleanup_event')) {
+		 // Programa l'esdeveniment perquè s'executi un cop al dia
+		 wp_schedule_event(time(), 'daily', 'sportic_analytics_daily_cleanup_event');
+	 }
+ }
+ 
+ // 2. Funció que s'executa diàriament i fa la neteja
+ add_action('sportic_analytics_daily_cleanup_event', 'sportic_analytics_do_cleanup');
+ function sportic_analytics_do_cleanup() {
+	 global $wpdb;
+	 $nomTaulaVisites = $wpdb->prefix . 'sportic_visits_log';
+	 
+	 // Esborra registres de més d'1 any d'antiguitat.
+	 $wpdb->query(
+		 "DELETE FROM $nomTaulaVisites WHERE visit_timestamp < DATE_SUB(NOW(), INTERVAL 1 YEAR)"
+	 );
+ }
+ 
+ // 3. Funció que desprograma la tasca quan el plugin es desactiva (bona pràctica)
+ register_deactivation_hook(__FILE__, 'sportic_analytics_unschedule_cleanup');
+ function sportic_analytics_unschedule_cleanup() {
+	 $timestamp = wp_next_scheduled('sportic_analytics_daily_cleanup_event');
+	 if ($timestamp) {
+		 wp_unschedule_event($timestamp, 'sportic_analytics_daily_cleanup_event');
+	 }
+ }
